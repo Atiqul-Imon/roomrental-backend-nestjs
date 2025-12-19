@@ -63,12 +63,15 @@ export class ReviewsService {
   }
 
   async findAll(query: any) {
-    const { revieweeId, page = 1, limit = 20 } = query;
+    const { revieweeId, listingId, page = 1, limit = 20 } = query;
     const skip = (page - 1) * limit;
 
     const where: any = {};
     if (revieweeId) {
       where.revieweeId = revieweeId;
+    }
+    if (listingId) {
+      where.listingId = listingId;
     }
 
     const [reviews, total] = await Promise.all([
