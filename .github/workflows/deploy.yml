@@ -46,6 +46,9 @@ jobs:
             
             echo "🚀 Starting deployment..."
             
+            # Add repository to Git safe.directory (fix ownership issue)
+            git config --global --add safe.directory /var/www/roomrental-api
+            
             # Navigate to application directory
             cd /var/www/roomrental-api
             
@@ -74,16 +77,16 @@ jobs:
             # Create logs directory if it doesn't exist
             mkdir -p logs
             
-            # Restart PM2 application
+            # Restart PM2 application (as appuser)
             echo "🔄 Restarting application..."
-            if pm2 list | grep -q "roomrental-api"; then
-              pm2 restart roomrental-api --update-env
+            if sudo -u appuser pm2 list | grep -q "roomrental-api"; then
+              sudo -u appuser pm2 restart roomrental-api --update-env
             else
-              pm2 start ecosystem.config.js
+              sudo -u appuser pm2 start ecosystem.config.js
             fi
             
             # Save PM2 process list
-            pm2 save
+            sudo -u appuser pm2 save
             
             # Wait a moment for app to start
             sleep 3
