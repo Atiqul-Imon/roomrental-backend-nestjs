@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
-import ImageKit from 'imagekit';
+import * as ImageKit from 'imagekit';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
@@ -7,7 +7,7 @@ export class UploadService {
   private imagekit: ImageKit;
 
   constructor(private configService: ConfigService) {
-    this.imagekit = new ImageKit({
+    this.imagekit = new ImageKit.default({
       publicKey: this.configService.get<string>('IMAGEKIT_PUBLIC_KEY') || '',
       privateKey: this.configService.get<string>('IMAGEKIT_PRIVATE_KEY') || '',
       urlEndpoint: this.configService.get<string>('IMAGEKIT_URL_ENDPOINT') || '',
