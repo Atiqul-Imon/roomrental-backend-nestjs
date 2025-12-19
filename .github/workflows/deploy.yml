@@ -21,20 +21,19 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: backend-nestjs/package-lock.json
       
       - name: Install dependencies
-        working-directory: ./backend-nestjs
         run: npm ci
       
       - name: Run tests (if any)
-        working-directory: ./backend-nestjs
         run: npm test --if-present
         continue-on-error: true
       
       - name: Add SSH known hosts
         run: |
+          mkdir -p ~/.ssh
           ssh-keyscan -H ${{ secrets.DROPLET_IP }} >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
       
       - name: Deploy to Digital Ocean
         uses: appleboy/ssh-action@v1.0.3
@@ -43,12 +42,59 @@ jobs:
           username: ${{ secrets.DROPLET_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            set -e  # Exit on error
+            
+            echo "🚀 Starting deployment..."
+            
+            # Navigate to application directory
             cd /var/www/roomrental-api
-            git pull origin main || git pull origin master
+            
+            # Pull latest code
+            echo "📥 Pulling latest code..."
+            git fetch origin
+            git reset --hard origin/main || git reset --hard origin/master
+            git clean -fd
+            
+            # Install dependencies
+            echo "📦 Installing dependencies..."
             npm install --legacy-peer-deps
+            
+            # Generate Prisma Client
+            echo "🔧 Generating Prisma Client..."
             npx prisma generate
-            npx prisma migrate deploy
+            
+            # Run database migrations
+            echo "🗄️  Running database migrations..."
+            npx prisma migrate deploy || echo "⚠️  Migration failed, continuing..."
+            
+            # Build application
+            echo "🏗️  Building application..."
             npm run build
+            
+            # Create logs directory if it doesn't exist
             mkdir -p logs
-            pm2 restart roomrental-api || pm2 start ecosystem.config.js
+            
+            # Restart PM2 application
+            echo "🔄 Restarting application..."
+            if pm2 list | grep -q "roomrental-api"; then
+              pm2 restart roomrental-api --update-env
+            else
+              pm2 start ecosystem.config.js
+            fi
+            
+            # Save PM2 process list
             pm2 save
+            
+            # Wait a moment for app to start
+            sleep 3
+            
+            # Health check
+            echo "🏥 Checking application health..."
+            if curl -f http://localhost:5000/api/health > /dev/null 2>&1; then
+              echo "✅ Deployment successful! Application is healthy."
+            else
+              echo "⚠️  Health check failed. Check logs: pm2 logs roomrental-api"
+              exit 1
+            fi
+            
+            echo "✅ Deployment complete!"
