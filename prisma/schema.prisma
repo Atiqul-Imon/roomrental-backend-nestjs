@@ -1,0 +1,131 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  student
+  landlord
+  admin
+  staff
+  super_admin
+}
+
+enum ListingStatus {
+  available
+  rented
+  pending
+  inactive
+}
+
+enum VerificationStatus {
+  pending
+  verified
+  rejected
+}
+
+model User {
+  id            String            @id @default(uuid())
+  email         String            @unique
+  password      String
+  name          String?
+  role          UserRole          @default(student)
+  profileImage  String?
+  bio           String?
+  phone         String?
+  preferences   Json?             // Store user preferences as JSON
+  verification  VerificationStatus @default(pending)
+  emailVerified Boolean           @default(false)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  // Relations
+  listings      Listing[]         @relation("LandlordListings")
+  favorites     Favorite[]
+  reviewsGiven  Review[]           @relation("ReviewerReviews")
+  reviewsReceived Review[]         @relation("RevieweeReviews")
+
+  @@map("users")
+}
+
+model Listing {
+  id              String        @id @default(uuid())
+  title           String
+  description     String        @db.Text
+  price           Float
+  bedrooms        Int
+  bathrooms       Float
+  squareFeet      Int?
+  city            String
+  state           String
+  zip             String?
+  address         String?
+  latitude        Float?
+  longitude       Float?
+  amenities       String[]      // Array of amenities
+  images          String[]      // Array of image URLs
+  status          ListingStatus @default(available)
+  availabilityDate DateTime
+  landlordId      String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relations
+  landlord        User          @relation("LandlordListings", fields: [landlordId], references: [id], onDelete: Cascade)
+  favorites       Favorite[]
+  reviews         Review[]
+
+  @@index([landlordId])
+  @@index([city])
+  @@index([state])
+  @@index([status])
+  @@index([price])
+  @@map("listings")
+}
+
+model Favorite {
+  userId      String
+  listingId   String
+  createdAt   DateTime @default(now())
+
+  // Relations
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing     Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@id([userId, listingId])
+  @@index([userId])
+  @@index([listingId])
+  @@map("favorites")
+}
+
+model Review {
+  id          String   @id @default(uuid())
+  reviewerId  String
+  revieweeId  String
+  listingId   String?
+  rating      Int      // Rating out of 5
+  comment     String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  reviewer    User     @relation("ReviewerReviews", fields: [reviewerId], references: [id], onDelete: Cascade)
+  reviewee    User     @relation("RevieweeReviews", fields: [revieweeId], references: [id], onDelete: Cascade)
+  listing     Listing? @relation(fields: [listingId], references: [id], onDelete: SetNull)
+
+  @@unique([reviewerId, revieweeId])
+  @@index([reviewerId])
+  @@index([revieweeId])
+  @@index([listingId])
+  @@map("reviews")
+}
+
+
+
