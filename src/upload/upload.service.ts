@@ -1,14 +1,16 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
-import { v2 as cloudinary } from 'cloudinary';
+import ImageKit from 'imagekit';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class UploadService {
+  private imagekit: ImageKit;
+
   constructor(private configService: ConfigService) {
-    cloudinary.config({
-      cloud_name: this.configService.get<string>('CLOUDINARY_CLOUD_NAME'),
-      api_key: this.configService.get<string>('CLOUDINARY_API_KEY'),
-      api_secret: this.configService.get<string>('CLOUDINARY_API_SECRET'),
+    this.imagekit = new ImageKit({
+      publicKey: this.configService.get<string>('IMAGEKIT_PUBLIC_KEY') || '',
+      privateKey: this.configService.get<string>('IMAGEKIT_PRIVATE_KEY') || '',
+      urlEndpoint: this.configService.get<string>('IMAGEKIT_URL_ENDPOINT') || '',
     });
   }
 
@@ -21,28 +23,22 @@ export class UploadService {
       throw new BadRequestException('File must be an image');
     }
 
-    return new Promise((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        {
-          folder: 'roomrental',
-          resource_type: 'image',
-          transformation: [
-            { width: 1200, height: 800, crop: 'limit' },
-            { quality: 'auto' },
-            { format: 'auto' },
-          ],
+    try {
+      const result = await this.imagekit.upload({
+        file: file.buffer,
+        fileName: file.originalname,
+        folder: '/roomrental',
+        useUniqueFileName: true,
+        overwriteFile: false,
+        transformation: {
+          pre: 'w-1200,h-800,c-limit,q-auto,f-auto', // width: 1200, height: 800, crop: limit, quality: auto, format: auto
         },
-        (error, result) => {
-          if (error) {
-            reject(new BadRequestException('Failed to upload image'));
-          } else {
-            resolve(result?.secure_url || '');
-          }
-        },
-      );
+      });
 
-      uploadStream.end(file.buffer);
-    });
+      return result.url;
+    } catch (error) {
+      throw new BadRequestException('Failed to upload image: ' + error.message);
+    }
   }
 
   async uploadMultipleImages(files: any[]): Promise<string[]> {
@@ -54,4 +50,3 @@ export class UploadService {
     return Promise.all(uploadPromises);
   }
 }
-
