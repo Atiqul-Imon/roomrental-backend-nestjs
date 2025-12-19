@@ -1,13 +1,15 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
-import * as ImageKit from 'imagekit';
 import { ConfigService } from '@nestjs/config';
+
+// Use require for ImageKit due to CommonJS compatibility
+const ImageKit = require('imagekit');
 
 @Injectable()
 export class UploadService {
-  private imagekit: ImageKit;
+  private imagekit: any;
 
   constructor(private configService: ConfigService) {
-    this.imagekit = new ImageKit.default({
+    this.imagekit = new ImageKit({
       publicKey: this.configService.get<string>('IMAGEKIT_PUBLIC_KEY') || '',
       privateKey: this.configService.get<string>('IMAGEKIT_PRIVATE_KEY') || '',
       urlEndpoint: this.configService.get<string>('IMAGEKIT_URL_ENDPOINT') || '',
