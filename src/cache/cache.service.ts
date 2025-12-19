@@ -26,7 +26,8 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
         },
         maxRetriesPerRequest: 3,
         enableReadyCheck: true,
-        enableOfflineQueue: false,
+        enableOfflineQueue: true, // Allow queuing when offline
+        lazyConnect: false, // Connect immediately
       });
 
       this.client.on('connect', () => {
