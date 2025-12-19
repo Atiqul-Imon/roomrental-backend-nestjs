@@ -44,8 +44,14 @@ export class ListingsService {
       },
     });
 
-    // Invalidate listings cache
-    await this.cache.invalidatePattern('listings:*');
+    // Invalidate listings cache and search static data cache
+    await Promise.all([
+      this.cache.invalidatePattern('listings:*'),
+      this.cache.del('search:cities'),
+      this.cache.del('search:states'),
+      this.cache.del('search:amenities'),
+      this.cache.del('search:price-range'),
+    ]);
 
     return {
       success: true,
@@ -243,10 +249,14 @@ export class ListingsService {
       },
     });
 
-    // Invalidate cache for this listing and listings list
+    // Invalidate cache for this listing, listings list, and search static data
     await Promise.all([
       this.cache.del(`listing:${id}`),
       this.cache.invalidatePattern('listings:*'),
+      this.cache.del('search:cities'),
+      this.cache.del('search:states'),
+      this.cache.del('search:amenities'),
+      this.cache.del('search:price-range'),
     ]);
 
     return {
@@ -272,10 +282,14 @@ export class ListingsService {
       where: { id },
     });
 
-    // Invalidate cache
+    // Invalidate cache for this listing, listings list, and search static data
     await Promise.all([
       this.cache.del(`listing:${id}`),
       this.cache.invalidatePattern('listings:*'),
+      this.cache.del('search:cities'),
+      this.cache.del('search:states'),
+      this.cache.del('search:amenities'),
+      this.cache.del('search:price-range'),
     ]);
 
     return {
@@ -362,11 +376,12 @@ export class ListingsService {
       },
     });
 
-    // Invalidate cache
+    // Invalidate cache for this listing, listings list, my-listings, and search static data
     await Promise.all([
       this.cache.del(`listing:${id}`),
       this.cache.invalidatePattern('listings:*'),
       this.cache.invalidatePattern(`my-listings:${userId}:*`),
+      this.cache.del('search:price-range'), // Price range changes when status changes
     ]);
 
     return {
