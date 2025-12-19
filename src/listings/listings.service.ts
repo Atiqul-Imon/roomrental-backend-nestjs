@@ -4,13 +4,17 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
+import { CacheService } from '../cache/cache.service';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
 import { SearchListingsDto } from './dto/search-listings.dto';
 
 @Injectable()
 export class ListingsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private cache: CacheService,
+  ) {}
 
   async create(landlordId: string, createDto: CreateListingDto) {
     const { location, availabilityDate, ...rest } = createDto;
@@ -40,6 +44,9 @@ export class ListingsService {
       },
     });
 
+    // Invalidate listings cache
+    await this.cache.invalidatePattern('listings:*');
+
     return {
       success: true,
       data: listing,
@@ -61,103 +68,136 @@ export class ListingsService {
       sort = 'createdAt',
     } = searchDto;
 
-    const skip = (page - 1) * limit;
-    const where: any = { status };
+    // Create cache key from search parameters
+    const cacheKey = `listings:${JSON.stringify({
+      city,
+      state,
+      minPrice,
+      maxPrice,
+      amenities: amenities?.sort(),
+      availabilityDate,
+      search,
+      status,
+      page,
+      limit,
+      sort,
+    })}`;
 
-    if (city) {
-      where.city = { contains: city, mode: 'insensitive' };
-    }
+    // Try to get from cache (5 minutes TTL)
+    return this.cache.getOrSet(
+      cacheKey,
+      async () => {
+        const skip = (page - 1) * limit;
+        const where: any = { status };
 
-    if (state) {
-      where.state = { contains: state, mode: 'insensitive' };
-    }
+        if (city) {
+          where.city = { contains: city, mode: 'insensitive' };
+        }
 
-    if (minPrice !== undefined || maxPrice !== undefined) {
-      where.price = {};
-      if (minPrice !== undefined) where.price.gte = minPrice;
-      if (maxPrice !== undefined) where.price.lte = maxPrice;
-    }
+        if (state) {
+          where.state = { contains: state, mode: 'insensitive' };
+        }
 
-    if (amenities && amenities.length > 0) {
-      where.amenities = { hasEvery: amenities };
-    }
+        if (minPrice !== undefined || maxPrice !== undefined) {
+          where.price = {};
+          if (minPrice !== undefined) where.price.gte = minPrice;
+          if (maxPrice !== undefined) where.price.lte = maxPrice;
+        }
 
-    if (availabilityDate) {
-      where.availabilityDate = { gte: new Date(availabilityDate) };
-    }
+        if (amenities && amenities.length > 0) {
+          where.amenities = { hasEvery: amenities };
+        }
 
-    if (search) {
-      where.OR = [
-        { title: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
-        { city: { contains: search, mode: 'insensitive' } },
-      ];
-    }
+        if (availabilityDate) {
+          where.availabilityDate = { gte: new Date(availabilityDate) };
+        }
 
-    const orderBy: any = {};
-    if (sort === 'price') orderBy.price = 'asc';
-    else if (sort === 'price-desc') orderBy.price = 'desc';
-    else if (sort === 'date') orderBy.createdAt = 'desc';
-    else orderBy.createdAt = 'desc';
+        if (search) {
+          where.OR = [
+            { title: { contains: search, mode: 'insensitive' } },
+            { description: { contains: search, mode: 'insensitive' } },
+            { city: { contains: search, mode: 'insensitive' } },
+          ];
+        }
 
-    const [listings, total] = await Promise.all([
-      this.prisma.listing.findMany({
-        where,
-        skip,
-        take: limit,
-        include: {
-          landlord: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              profileImage: true,
+        const orderBy: any = {};
+        if (sort === 'price') orderBy.price = 'asc';
+        else if (sort === 'price-desc') orderBy.price = 'desc';
+        else if (sort === 'date') orderBy.createdAt = 'desc';
+        else orderBy.createdAt = 'desc';
+
+        const [listings, total] = await Promise.all([
+          this.prisma.listing.findMany({
+            where,
+            skip,
+            take: limit,
+            include: {
+              landlord: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  profileImage: true,
+                },
+              },
+            },
+            orderBy,
+          }),
+          this.prisma.listing.count({ where }),
+        ]);
+
+        return {
+          success: true,
+          data: {
+            listings,
+            pagination: {
+              total,
+              page,
+              limit,
+              totalPages: Math.ceil(total / limit),
             },
           },
-        },
-        orderBy,
-      }),
-      this.prisma.listing.count({ where }),
-    ]);
-
-    return {
-      success: true,
-      data: {
-        listings,
-        pagination: {
-          total,
-          page,
-          limit,
-          totalPages: Math.ceil(total / limit),
-        },
+        };
       },
-    };
+      300, // 5 minutes cache
+    );
   }
 
   async findOne(id: string) {
-    const listing = await this.prisma.listing.findUnique({
-      where: { id },
-      include: {
-        landlord: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            profileImage: true,
-            bio: true,
+    const cacheKey = `listing:${id}`;
+
+    // Try to get from cache (2 minutes TTL)
+    const result = await this.cache.getOrSet(
+      cacheKey,
+      async () => {
+        const listing = await this.prisma.listing.findUnique({
+          where: { id },
+          include: {
+            landlord: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                profileImage: true,
+                bio: true,
+              },
+            },
           },
-        },
+        });
+
+        if (!listing) {
+          throw new NotFoundException('Listing not found');
+        }
+
+        return {
+          success: true,
+          data: listing,
+        };
       },
-    });
+      120, // 2 minutes cache
+    );
 
-    if (!listing) {
-      throw new NotFoundException('Listing not found');
-    }
-
-    return {
-      success: true,
-      data: listing,
-    };
+    return result;
   }
 
   async update(id: string, userId: string, updateDto: UpdateListingDto) {
@@ -203,6 +243,12 @@ export class ListingsService {
       },
     });
 
+    // Invalidate cache for this listing and listings list
+    await Promise.all([
+      this.cache.del(`listing:${id}`),
+      this.cache.invalidatePattern('listings:*'),
+    ]);
+
     return {
       success: true,
       data: updated,
@@ -226,6 +272,12 @@ export class ListingsService {
       where: { id },
     });
 
+    // Invalidate cache
+    await Promise.all([
+      this.cache.del(`listing:${id}`),
+      this.cache.invalidatePattern('listings:*'),
+    ]);
+
     return {
       success: true,
       message: 'Listing deleted successfully',
@@ -234,43 +286,52 @@ export class ListingsService {
 
   async findMyListings(landlordId: string, query: any) {
     const { status, page = 1, limit = 12 } = query;
-    const skip = (page - 1) * limit;
+    const cacheKey = `my-listings:${landlordId}:${status}:${page}:${limit}`;
 
-    const where: any = { landlordId };
-    if (status && status !== 'all') {
-      where.status = status;
-    }
+    // Try to get from cache (5 minutes TTL)
+    return this.cache.getOrSet(
+      cacheKey,
+      async () => {
+        const skip = (page - 1) * limit;
 
-    const [listings, total] = await Promise.all([
-      this.prisma.listing.findMany({
-        where,
-        skip,
-        take: limit,
-        include: {
-          landlord: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              profileImage: true,
+        const where: any = { landlordId };
+        if (status && status !== 'all') {
+          where.status = status;
+        }
+
+        const [listings, total] = await Promise.all([
+          this.prisma.listing.findMany({
+            where,
+            skip,
+            take: limit,
+            include: {
+              landlord: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  profileImage: true,
+                },
+              },
             },
-          },
-        },
-        orderBy: { createdAt: 'desc' },
-      }),
-      this.prisma.listing.count({ where }),
-    ]);
+            orderBy: { createdAt: 'desc' },
+          }),
+          this.prisma.listing.count({ where }),
+        ]);
 
-    return {
-      success: true,
-      data: {
-        listings,
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
+        return {
+          success: true,
+          data: {
+            listings,
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit),
+          },
+        };
       },
-    };
+      300, // 5 minutes cache
+    );
   }
 
   async updateStatus(id: string, userId: string, status: string) {
@@ -300,6 +361,13 @@ export class ListingsService {
         },
       },
     });
+
+    // Invalidate cache
+    await Promise.all([
+      this.cache.del(`listing:${id}`),
+      this.cache.invalidatePattern('listings:*'),
+      this.cache.invalidatePattern(`my-listings:${userId}:*`),
+    ]);
 
     return {
       success: true,

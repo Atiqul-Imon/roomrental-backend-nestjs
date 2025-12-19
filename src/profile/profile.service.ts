@@ -1,37 +1,50 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
+import { CacheService } from '../cache/cache.service';
 
 @Injectable()
 export class ProfileService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private cache: CacheService,
+  ) {}
 
   async getProfile(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        profileImage: true,
-        bio: true,
-        phone: true,
-        preferences: true,
-        verification: true,
-        emailVerified: true,
-        createdAt: true,
-        updatedAt: true,
+    const cacheKey = `profile:${userId}`;
+
+    // Try to get from cache (10 minutes TTL)
+    return this.cache.getOrSet(
+      cacheKey,
+      async () => {
+        const user = await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            role: true,
+            profileImage: true,
+            bio: true,
+            phone: true,
+            preferences: true,
+            verification: true,
+            emailVerified: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        });
+
+        if (!user) {
+          throw new NotFoundException('User not found');
+        }
+
+        return {
+          success: true,
+          data: { user },
+        };
       },
-    });
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    return {
-      success: true,
-      data: { user },
-    };
+      600, // 10 minutes cache
+    );
   }
 
   async updateProfile(userId: string, updateData: any) {
@@ -62,6 +75,13 @@ export class ProfileService {
       },
     });
 
+    // Invalidate cache
+    await Promise.all([
+      this.cache.del(`profile:${userId}`),
+      this.cache.del(`user:${userId}`),
+      this.cache.invalidatePattern(`user-profile:${userId}*`),
+    ]);
+
     return {
       success: true,
       data: { user: updated },
@@ -69,64 +89,73 @@ export class ProfileService {
   }
 
   async getUserProfile(userId: string, currentUserId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        role: true,
-        profileImage: true,
-        bio: true,
-        verification: true,
-        createdAt: true,
-      },
-    });
+    const cacheKey = `user-profile:${userId}`;
 
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    // Get user's listings if landlord
-    let listings = [];
-    if (user.role === 'landlord') {
-      listings = await this.prisma.listing.findMany({
-        where: { landlordId: userId, status: 'available' },
-        select: {
-          id: true,
-          title: true,
-          price: true,
-          city: true,
-          state: true,
-          images: true,
-        },
-        take: 5,
-      });
-    }
-
-    // Get reviews
-    const reviews = await this.prisma.review.findMany({
-      where: { revieweeId: userId },
-      include: {
-        reviewer: {
+    // Try to get from cache (10 minutes TTL)
+    return this.cache.getOrSet(
+      cacheKey,
+      async () => {
+        const user = await this.prisma.user.findUnique({
+          where: { id: userId },
           select: {
             id: true,
             name: true,
+            role: true,
             profileImage: true,
+            bio: true,
+            verification: true,
+            createdAt: true,
           },
-        },
-      },
-      take: 10,
-      orderBy: { createdAt: 'desc' },
-    });
+        });
 
-    return {
-      success: true,
-      data: {
-        user,
-        listings,
-        reviews,
+        if (!user) {
+          throw new NotFoundException('User not found');
+        }
+
+        // Get user's listings if landlord
+        let listings = [];
+        if (user.role === 'landlord') {
+          listings = await this.prisma.listing.findMany({
+            where: { landlordId: userId, status: 'available' },
+            select: {
+              id: true,
+              title: true,
+              price: true,
+              city: true,
+              state: true,
+              images: true,
+            },
+            take: 5,
+          });
+        }
+
+        // Get reviews
+        const reviews = await this.prisma.review.findMany({
+          where: { revieweeId: userId },
+          include: {
+            reviewer: {
+              select: {
+                id: true,
+                name: true,
+                profileImage: true,
+              },
+            },
+          },
+          take: 10,
+          orderBy: { createdAt: 'desc' },
+        });
+
+        return {
+          success: true,
+          data: {
+            user,
+            listings,
+            reviews,
+          },
+        };
       },
-    };
+      600, // 10 minutes cache
+    );
   }
 }
 

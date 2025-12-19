@@ -6,6 +6,7 @@ import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { CacheInterceptor } from './common/interceptors/cache.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -45,6 +46,7 @@ async function bootstrap() {
   
   // Global interceptors
   app.useGlobalInterceptors(
+    new CacheInterceptor(), // Cache headers - must be first
     new TransformInterceptor(),
     new LoggingInterceptor(),
   );

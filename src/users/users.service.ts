@@ -1,37 +1,50 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
+import { CacheService } from '../cache/cache.service';
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private cache: CacheService,
+  ) {}
 
   async getUser(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        profileImage: true,
-        bio: true,
-        phone: true,
-        preferences: true,
-        verification: true,
-        emailVerified: true,
-        createdAt: true,
-        updatedAt: true,
+    const cacheKey = `user:${userId}`;
+
+    // Try to get from cache (10 minutes TTL)
+    return this.cache.getOrSet(
+      cacheKey,
+      async () => {
+        const user = await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            role: true,
+            profileImage: true,
+            bio: true,
+            phone: true,
+            preferences: true,
+            verification: true,
+            emailVerified: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        });
+
+        if (!user) {
+          throw new NotFoundException('User not found');
+        }
+
+        return {
+          success: true,
+          data: { user },
+        };
       },
-    });
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    return {
-      success: true,
-      data: { user },
-    };
+      600, // 10 minutes cache
+    );
   }
 
   async listUsers(query: any) {
