@@ -45,8 +45,7 @@ jobs:
           script: |
             cd /var/www/roomrental-api
             git pull origin main || git pull origin master
-            cd backend-nestjs
-            npm ci --production=false
+            npm install --legacy-peer-deps
             npx prisma generate
             npx prisma migrate deploy
             npm run build
