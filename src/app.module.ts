@@ -14,6 +14,7 @@ import { UploadModule } from './upload/upload.module';
 import { ProfileModule } from './profile/profile.module';
 import { AdminModule } from './admin/admin.module';
 import { SocketModule } from './socket/socket.module';
+import { ChatModule } from './chat/chat.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { SocketModule } from './socket/socket.module';
     ProfileModule,
     AdminModule,
     SocketModule,
+    ChatModule,
   ],
 })
 export class AppModule {}

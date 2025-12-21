@@ -31,6 +31,13 @@ enum VerificationStatus {
   rejected
 }
 
+enum MessageType {
+  text
+  image
+  file
+  system
+}
+
 model User {
   id            String            @id @default(uuid())
   email         String            @unique
@@ -51,6 +58,9 @@ model User {
   favorites     Favorite[]
   reviewsGiven  Review[]           @relation("ReviewerReviews")
   reviewsReceived Review[]         @relation("RevieweeReviews")
+  conversationsAsParticipant1 Conversation[] @relation("ConversationParticipant1")
+  conversationsAsParticipant2 Conversation[] @relation("ConversationParticipant2")
+  sentMessages                 Message[]      @relation("MessageSender")
 
   @@map("users")
 }
@@ -81,6 +91,7 @@ model Listing {
   landlord        User          @relation("LandlordListings", fields: [landlordId], references: [id], onDelete: Cascade)
   favorites       Favorite[]
   reviews         Review[]
+  conversations   Conversation[]
 
   @@index([landlordId])
   @@index([city])
@@ -127,8 +138,46 @@ model Review {
   @@map("reviews")
 }
 
+model Conversation {
+  id            String    @id @default(uuid())
+  participant1Id String
+  participant2Id String
+  listingId     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastMessageAt DateTime?
+  
+  participant1  User      @relation("ConversationParticipant1", fields: [participant1Id], references: [id], onDelete: Cascade)
+  participant2  User      @relation("ConversationParticipant2", fields: [participant2Id], references: [id], onDelete: Cascade)
+  listing       Listing?  @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  messages      Message[]
+  
+  @@unique([participant1Id, participant2Id, listingId])
+  @@index([participant1Id])
+  @@index([participant2Id])
+  @@index([lastMessageAt])
+  @@map("conversations")
+}
 
-
+model Message {
+  id             String      @id @default(uuid())
+  conversationId String
+  senderId       String
+  content        String      @db.Text
+  messageType    MessageType @default(text)
+  attachments    String[]    // Array of file URLs
+  readAt         DateTime?
+  deliveredAt    DateTime?
+  createdAt      DateTime    @default(now())
+  
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User         @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  
+  @@index([conversationId, createdAt])
+  @@index([senderId])
+  @@index([readAt])
+  @@map("messages")
+}
 
 
 
