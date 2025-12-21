@@ -61,3 +61,6 @@ else
     echo "⚠️  Check logs: ssh root@167.71.110.39 'sudo -u appuser pm2 logs roomrental-api --lines 30'"
 fi
 
+
+
+

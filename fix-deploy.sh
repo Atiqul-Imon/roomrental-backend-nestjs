@@ -45,3 +45,6 @@ echo ""
 echo "Next: We need to configure .env file"
 echo "Run the environment setup manually or provide credentials"
 
+
+
+

@@ -307,3 +307,6 @@ echo "  2. Configure domain DNS (if you have one)"
 echo "  3. Setup SSL: sudo certbot --nginx -d your-domain.com"
 echo "  4. Add GitHub Secrets for CI/CD (see GITHUB_CI_CD_SETUP.md)"
 
+
+
+

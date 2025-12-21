@@ -205,3 +205,6 @@ echo ""
 echo "PM2 Status:"
 ssh root@$DROPLET_IP "sudo -u appuser pm2 status"
 
+
+
+

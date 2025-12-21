@@ -105,3 +105,6 @@ sudo tail -f /var/log/nginx/roomrental-api-access.log
 
 See `DEPLOYMENT_GUIDE.md` for detailed instructions.
 
+
+
+

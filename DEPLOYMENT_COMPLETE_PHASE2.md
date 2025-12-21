@@ -191,3 +191,6 @@ sudo -u appuser pm2 logs roomrental-api | grep -i cache
 **Redis:** ✅ Installed and Running  
 **Application:** ✅ Restarted
 
+
+
+

@@ -131,3 +131,6 @@ echo -e "${GREEN}   3. Run deployment script: ./deploy.sh${NC}"
 echo -e "${GREEN}   4. Configure Nginx (see instructions above)${NC}"
 echo -e "${GREEN}   5. Setup SSL: certbot --nginx -d your-domain.com${NC}"
 
+
+
+

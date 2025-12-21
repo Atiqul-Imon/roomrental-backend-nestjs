@@ -81,3 +81,6 @@ echo -e "${GREEN}✅ Deployment completed successfully!${NC}"
 echo -e "${GREEN}📊 Check status: pm2 status${NC}"
 echo -e "${GREEN}📋 View logs: pm2 logs roomrental-api${NC}"
 
+
+
+

@@ -76,3 +76,6 @@ echo "  - Connect to Redis CLI: redis-cli"
 echo "  - Monitor Redis: redis-cli monitor"
 echo "  - Get Redis info: redis-cli info"
 
+
+
+

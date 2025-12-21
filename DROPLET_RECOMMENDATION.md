@@ -118,3 +118,6 @@ Starting with NVMe now makes scaling smoother.
 
 **Note**: Both plans will work, but $14 gives you better performance and is worth the extra $2/month for a production application.
 
+
+
+

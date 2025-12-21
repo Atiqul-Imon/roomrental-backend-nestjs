@@ -151,3 +151,6 @@ After adding secrets:
 - Verify .env file exists and is configured
 - Check Nginx status: `systemctl status nginx`
 
+
+
+

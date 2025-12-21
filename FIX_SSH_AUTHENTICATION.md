@@ -160,3 +160,6 @@ ssh root@167.71.110.39 "sudo -u appuser cat /home/appuser/.ssh/authorized_keys"
 
 **Once you add the SSH_PRIVATE_KEY secret to GitHub, the deployment will work! 🚀**
 
+
+
+

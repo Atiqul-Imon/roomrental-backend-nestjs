@@ -196,3 +196,6 @@ echo "  ssh root@167.71.110.39 'sudo -u appuser pm2 status'"
 echo "  ssh root@167.71.110.39 'sudo -u appuser pm2 logs roomrental-api'"
 echo "  ssh root@167.71.110.39 'sudo -u appuser pm2 restart roomrental-api'"
 
+
+
+
