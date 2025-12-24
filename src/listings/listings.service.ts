@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { CacheService } from '../cache/cache.service';
@@ -18,6 +19,17 @@ export class ListingsService {
 
   async create(landlordId: string, createDto: CreateListingDto) {
     const { location, availabilityDate, ...rest } = createDto;
+
+    // If a landlordId is explicitly provided (by an admin), validate it
+    if (createDto.landlordId && createDto.landlordId !== landlordId) {
+      const targetLandlord = await this.prisma.user.findUnique({
+        where: { id: createDto.landlordId },
+      });
+      if (!targetLandlord || targetLandlord.role !== 'landlord') {
+        throw new BadRequestException('Invalid landlordId provided. User must exist and have a "landlord" role.');
+      }
+      landlordId = createDto.landlordId; // Use the provided landlordId
+    }
 
     const listing = await this.prisma.listing.create({
       data: {
@@ -186,6 +198,7 @@ export class ListingsService {
                 email: true,
                 profileImage: true,
                 bio: true,
+                role: true,
               },
             },
           },

@@ -127,6 +127,19 @@ export class AdminService {
       },
     };
   }
+
+  async getAllLandlords() {
+    const landlords = await this.prisma.user.findMany({
+      where: { role: 'landlord' },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+    return { success: true, data: landlords };
+  }
 }
 
 

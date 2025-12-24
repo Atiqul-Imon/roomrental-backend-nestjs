@@ -26,11 +26,15 @@ export class ListingsController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('landlord')
+  @Roles('landlord', 'admin', 'super_admin', 'staff')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new listing' })
   create(@Body() createListingDto: CreateListingDto, @CurrentUser() user: any) {
-    return this.listingsService.create(user.id, createListingDto);
+    // If an admin provides a landlordId, use it. Otherwise, attribute to the admin.
+    const attributedLandlordId = (user.role !== 'landlord' && createListingDto.landlordId)
+      ? createListingDto.landlordId
+      : user.id;
+    return this.listingsService.create(attributedLandlordId, createListingDto);
   }
 
   @Get()

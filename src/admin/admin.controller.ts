@@ -30,6 +30,12 @@ export class AdminController {
   getAllListings(@Query() query: any) {
     return this.adminService.getAllListings(query);
   }
+
+  @Get('landlords')
+  @ApiOperation({ summary: 'Get all landlords for selection (admin only)' })
+  getAllLandlords() {
+    return this.adminService.getAllLandlords();
+  }
 }
 
 

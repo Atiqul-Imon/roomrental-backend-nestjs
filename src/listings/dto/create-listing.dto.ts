@@ -103,6 +103,11 @@ export class CreateListingDto {
   @ApiProperty()
   @IsDateString()
   availabilityDate: string;
+
+  @ApiProperty({ required: false, description: 'Optional: Assign this listing to an existing landlord (Admin only)' })
+  @IsString()
+  @IsOptional()
+  landlordId?: string;
 }
 
 

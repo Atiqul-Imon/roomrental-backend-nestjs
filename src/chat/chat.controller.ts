@@ -25,11 +25,15 @@ export class ChatController {
     @Body() body: { userId: string; listingId?: string },
     @CurrentUser() user: any,
   ) {
-    return this.chatService.createOrGetConversation(
+    const conversation = await this.chatService.createOrGetConversation(
       user.id,
       body.userId,
       body.listingId,
     );
+    return {
+      success: true,
+      data: conversation,
+    };
   }
 
   @Get('conversations')
@@ -39,11 +43,15 @@ export class ChatController {
     @Query('limit') limit: string = '20',
     @CurrentUser() user: any,
   ) {
-    return this.chatService.getConversations(
+    const conversations = await this.chatService.getConversations(
       user.id,
       parseInt(page),
       parseInt(limit),
     );
+    return {
+      success: true,
+      data: conversations,
+    };
   }
 
   @Get('conversations/:conversationId/messages')
@@ -53,11 +61,15 @@ export class ChatController {
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '50',
   ) {
-    return this.chatService.getMessages(
+    const messages = await this.chatService.getMessages(
       conversationId,
       parseInt(page),
       parseInt(limit),
     );
+    return {
+      success: true,
+      data: messages,
+    };
   }
 
   @Post('conversations/:conversationId/messages')
@@ -67,13 +79,17 @@ export class ChatController {
     @Body() body: { content: string; messageType?: string; attachments?: string[] },
     @CurrentUser() user: any,
   ) {
-    return this.chatService.sendMessage(
+    const message = await this.chatService.sendMessage(
       conversationId,
       user.id,
       body.content,
       body.messageType,
       body.attachments,
     );
+    return {
+      success: true,
+      data: message,
+    };
   }
 
   @Post('conversations/:conversationId/read')
