@@ -6,7 +6,9 @@
   "private": true,
   "license": "ISC",
   "scripts": {
+    "clean": "rm -rf dist *.tsbuildinfo **/*.tsbuildinfo",
     "build": "nest build",
+    "build:clean": "npm run clean && npm run build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "dev": "nest start --watch",
