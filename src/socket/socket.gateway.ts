@@ -16,7 +16,9 @@ import { ConfigService } from '@nestjs/config';
 
 @WebSocketGateway({
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: process.env.CORS_ORIGIN
+      ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
+      : [process.env.FRONTEND_URL || 'http://localhost:3000'],
     credentials: true,
   },
   namespace: '/chat',
