@@ -47,6 +47,9 @@ export class UploadService {
       throw new BadRequestException('No file provided');
     }
 
+    // Log file details for debugging
+    this.logger.log(`Received file: ${file.originalname}, size: ${file.size} bytes, type: ${file.mimetype}`);
+
     if (!file.mimetype || !file.mimetype.startsWith('image/')) {
       throw new BadRequestException('File must be an image');
     }
@@ -57,7 +60,25 @@ export class UploadService {
       throw new BadRequestException('File size exceeds maximum limit of 10MB');
     }
 
+    // Check if ImageKit is configured
+    const publicKey = this.configService.get<string>('IMAGEKIT_PUBLIC_KEY');
+    const privateKey = this.configService.get<string>('IMAGEKIT_PRIVATE_KEY');
+    const urlEndpoint = this.configService.get<string>('IMAGEKIT_URL_ENDPOINT');
+
+    if (!publicKey || !privateKey || !urlEndpoint) {
+      this.logger.error('ImageKit credentials not configured');
+      throw new BadRequestException('Image upload service is not configured. Please contact support.');
+    }
+
+    // Validate file buffer exists
+    if (!file.buffer || file.buffer.length === 0) {
+      this.logger.error('File buffer is empty or missing');
+      throw new BadRequestException('File data is corrupted or missing');
+    }
+
     try {
+      this.logger.log(`Uploading to ImageKit: ${file.originalname}`);
+      
       const result = (await this.imagekit.upload({
         file: file.buffer,
         fileName: file.originalname,
@@ -69,21 +90,31 @@ export class UploadService {
         },
       })) as ImageKitUploadResult;
 
-      this.logger.log(`Image uploaded successfully: ${result.fileId}`);
+      this.logger.log(`Image uploaded successfully: ${result.fileId}, URL: ${result.url}`);
       return result.url;
     } catch (error: any) {
-      this.logger.error(`ImageKit upload failed: ${error.message}`, error.stack);
+      this.logger.error(`ImageKit upload failed: ${error.message || 'Unknown error'}`, error.stack);
+      this.logger.error(`Error details: ${JSON.stringify(error, Object.getOwnPropertyNames(error))}`);
       
       // Provide more specific error messages
-      if (error.message?.includes('authentication')) {
-        throw new BadRequestException('ImageKit authentication failed. Please check your credentials.');
+      if (error.message?.includes('authentication') || error.message?.includes('Invalid')) {
+        throw new BadRequestException('Image upload service authentication failed. Please contact support.');
       }
-      if (error.message?.includes('network') || error.message?.includes('timeout')) {
-        throw new BadRequestException('Network error while uploading image. Please try again.');
+      if (error.message?.includes('network') || error.message?.includes('timeout') || error.message?.includes('ECONNREFUSED')) {
+        throw new BadRequestException('Network error while uploading image. Please check your connection and try again.');
+      }
+      if (error.message?.includes('ENOTFOUND') || error.message?.includes('getaddrinfo')) {
+        throw new BadRequestException('Cannot reach image upload service. Please try again later.');
       }
       
+      // Extract more details from error
+      const errorMessage = error.message || error.toString() || 'Unknown error';
+      const errorDetails = error.response?.data || error.body || error.data;
+      
+      this.logger.error(`Full error: ${JSON.stringify({ message: errorMessage, details: errorDetails, stack: error.stack })}`);
+      
       throw new BadRequestException(
-        `Failed to upload image: ${error.message || 'Unknown error'}`
+        `Failed to upload image: ${errorMessage}${errorDetails ? ` (${JSON.stringify(errorDetails)})` : ''}`
       );
     }
   }

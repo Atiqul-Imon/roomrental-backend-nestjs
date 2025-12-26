@@ -5,6 +5,7 @@ import {
   UploadedFile,
   UploadedFiles,
   UseGuards,
+  BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
@@ -23,6 +24,10 @@ export class UploadController {
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Upload a single image' })
   async uploadImage(@UploadedFile() file: any) {
+    if (!file) {
+      throw new BadRequestException('No file received. Please ensure the file field is named "image" and the file is a valid image.');
+    }
+    
     const url = await this.uploadService.uploadImage(file);
     return {
       success: true,
