@@ -19,6 +19,22 @@ enum ListingStatus {
   INACTIVE = 'inactive',
 }
 
+export enum PropertyType {
+  APARTMENT = 'apartment',
+  HOUSE = 'house',
+  DORM = 'dorm',
+  STUDIO = 'studio',
+  SHARED_ROOM = 'shared_room',
+  PRIVATE_ROOM = 'private_room',
+}
+
+export enum GenderPreference {
+  MALE = 'male',
+  FEMALE = 'female',
+  COED = 'coed',
+  ANY = 'any',
+}
+
 class LocationDto {
   @ApiProperty()
   @IsString()
@@ -108,6 +124,47 @@ export class CreateListingDto {
   @IsString()
   @IsOptional()
   landlordId?: string;
+
+  @ApiProperty({ enum: PropertyType, required: false })
+  @IsEnum(PropertyType)
+  @IsOptional()
+  propertyType?: PropertyType;
+
+  @ApiProperty({ required: false, default: false })
+  @IsOptional()
+  petFriendly?: boolean;
+
+  @ApiProperty({ required: false, default: false })
+  @IsOptional()
+  smokingAllowed?: boolean;
+
+  @ApiProperty({ enum: GenderPreference, required: false, default: GenderPreference.ANY })
+  @IsEnum(GenderPreference)
+  @IsOptional()
+  genderPreference?: GenderPreference;
+
+  @ApiProperty({ required: false, default: false })
+  @IsOptional()
+  parkingAvailable?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  @Max(100)
+  walkabilityScore?: number;
+
+  @ApiProperty({ type: [String], required: false })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  nearbyUniversities?: string[];
+
+  @ApiProperty({ type: [String], required: false })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  nearbyTransit?: string[];
 }
 
 

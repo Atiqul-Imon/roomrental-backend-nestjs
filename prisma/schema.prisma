@@ -38,6 +38,22 @@ enum MessageType {
   system
 }
 
+enum PropertyType {
+  apartment
+  house
+  dorm
+  studio
+  shared_room
+  private_room
+}
+
+enum GenderPreference {
+  male
+  female
+  coed
+  any
+}
+
 model User {
   id            String            @id @default(uuid())
   email         String            @unique
@@ -86,6 +102,17 @@ model Listing {
   landlordId      String
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
+  
+  // Advanced search fields
+  propertyType    PropertyType?
+  petFriendly    Boolean        @default(false)
+  smokingAllowed  Boolean        @default(false)
+  genderPreference GenderPreference? @default(any)
+  parkingAvailable Boolean       @default(false)
+  walkabilityScore Int?
+  nearbyUniversities String[]    // Array of university names
+  nearbyTransit   String[]      // Array of transit station names
+  viewCount       Int           @default(0)  // For popularity sorting
 
   // Relations
   landlord        User          @relation("LandlordListings", fields: [landlordId], references: [id], onDelete: Cascade)
@@ -98,6 +125,13 @@ model Listing {
   @@index([state])
   @@index([status])
   @@index([price])
+  @@index([bedrooms])
+  @@index([bathrooms])
+  @@index([squareFeet])
+  @@index([propertyType])
+  @@index([petFriendly])
+  @@index([latitude, longitude])  // For geospatial search
+  @@index([viewCount])  // For popularity sorting
   @@map("listings")
 }
 
