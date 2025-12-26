@@ -108,11 +108,19 @@ export class UploadService {
           errorMessage = responseData;
         } else if (responseData?.message) {
           errorMessage = responseData.message;
+        } else if (responseData?.help) {
+          // ImageKit returns errors with a "help" field
+          errorMessage = typeof responseData.help === 'string' ? responseData.help : JSON.stringify(responseData.help);
         } else if (responseData?.error) {
           errorMessage = typeof responseData.error === 'string' ? responseData.error : JSON.stringify(responseData.error);
+        } else if (responseData?.message) {
+          errorMessage = responseData.message;
         } else {
           errorMessage = JSON.stringify(responseData);
         }
+      } else if (error?.help) {
+        // Handle ImageKit error with "help" field directly
+        errorMessage = typeof error.help === 'string' ? error.help : JSON.stringify(error.help);
       } else {
         // Try to stringify the error object safely
         try {
@@ -127,7 +135,13 @@ export class UploadService {
       
       // Provide more specific error messages
       const lowerMessage = errorMessage.toLowerCase();
-      if (lowerMessage.includes('authentication') || lowerMessage.includes('invalid') || lowerMessage.includes('credential')) {
+      
+      // Check for ImageKit Internal Server Error
+      if (lowerMessage.includes('internal server error') || lowerMessage.includes('"help":"internal server error"')) {
+        throw new BadRequestException('Image upload service is temporarily unavailable. Please try again in a few moments or contact support if the issue persists.');
+      }
+      
+      if (lowerMessage.includes('authentication') || lowerMessage.includes('invalid') || lowerMessage.includes('credential') || lowerMessage.includes('unauthorized')) {
         throw new BadRequestException('Image upload service authentication failed. Please contact support.');
       }
       if (lowerMessage.includes('network') || lowerMessage.includes('timeout') || lowerMessage.includes('econnrefused') || lowerMessage.includes('econnreset')) {
