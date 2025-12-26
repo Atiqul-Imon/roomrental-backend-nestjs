@@ -39,8 +39,9 @@ export class ListingsController {
 
   @Get()
   @ApiOperation({ summary: 'Search and list listings' })
-  findAll(@Query() searchDto: SearchListingsDto) {
-    return this.listingsService.findAll(searchDto);
+  findAll(@Query() searchDto: SearchListingsDto, @CurrentUser() user?: any) {
+    // Pass userId to service for search history tracking
+    return this.listingsService.findAll(searchDto, user?.id || null);
   }
 
   @Get(':id')

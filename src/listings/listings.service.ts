@@ -3,18 +3,23 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { CacheService } from '../cache/cache.service';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
 import { SearchListingsDto } from './dto/search-listings.dto';
+import { SearchHistoryService } from '../search-history/search-history.service';
 
 @Injectable()
 export class ListingsService {
   constructor(
     private prisma: PrismaService,
     private cache: CacheService,
+    @Inject(forwardRef(() => SearchHistoryService))
+    private searchHistoryService: SearchHistoryService,
   ) {}
 
   async create(landlordId: string, createDto: CreateListingDto) {
@@ -79,7 +84,7 @@ export class ListingsService {
     };
   }
 
-  async findAll(searchDto: SearchListingsDto) {
+  async findAll(searchDto: SearchListingsDto, userId: string | null = null) {
     const {
       city,
       state,
@@ -322,6 +327,11 @@ export class ListingsService {
           }
         }
 
+        // Track search history (async, don't wait)
+        this.trackSearchHistory(userId, searchDto, total).catch((err) => {
+          console.error('Error tracking search history:', err);
+        });
+
         return {
           success: true,
           data: {
@@ -337,6 +347,31 @@ export class ListingsService {
       },
       300, // 5 minutes cache
     );
+  }
+
+  private async trackSearchHistory(userId: string | null, searchDto: SearchListingsDto, resultsCount: number) {
+    try {
+      // Build filters object
+      const filters: Record<string, any> = {};
+      if (searchDto.city) filters.city = searchDto.city;
+      if (searchDto.state) filters.state = searchDto.state;
+      if (searchDto.minPrice) filters.minPrice = searchDto.minPrice;
+      if (searchDto.maxPrice) filters.maxPrice = searchDto.maxPrice;
+      if (searchDto.amenities && searchDto.amenities.length > 0) filters.amenities = searchDto.amenities;
+      if (searchDto.propertyType) filters.propertyType = searchDto.propertyType;
+      if (searchDto.petFriendly !== undefined) filters.petFriendly = searchDto.petFriendly;
+      if (searchDto.minBedrooms) filters.minBedrooms = searchDto.minBedrooms;
+      if (searchDto.maxBedrooms) filters.maxBedrooms = searchDto.maxBedrooms;
+
+      await this.searchHistoryService.create(userId, {
+        searchQuery: searchDto.search || null,
+        filters: Object.keys(filters).length > 0 ? filters : null,
+        resultsCount,
+      });
+    } catch (error) {
+      // Silently fail - search history tracking shouldn't break search
+      console.error('Failed to track search history:', error);
+    }
   }
 
   async findOne(id: string) {
