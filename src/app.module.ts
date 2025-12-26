@@ -15,6 +15,7 @@ import { ProfileModule } from './profile/profile.module';
 import { AdminModule } from './admin/admin.module';
 import { SocketModule } from './socket/socket.module';
 import { ChatModule } from './chat/chat.module';
+import { SavedSearchesModule } from './saved-searches/saved-searches.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { ChatModule } from './chat/chat.module';
     AdminModule,
     SocketModule,
     ChatModule,
+    SavedSearchesModule,
   ],
 })
 export class AppModule {}

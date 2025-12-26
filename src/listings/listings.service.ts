@@ -579,6 +579,177 @@ export class ListingsService {
       data: updated,
     };
   }
+
+  async getFilterCounts(searchDto: SearchListingsDto) {
+    const {
+      city,
+      state,
+      minPrice,
+      maxPrice,
+      search,
+      availabilityDate,
+      amenities,
+      minBedrooms,
+      maxBedrooms,
+      minBathrooms,
+      maxBathrooms,
+      minSquareFeet,
+      maxSquareFeet,
+      propertyType,
+      petFriendly,
+      smokingAllowed,
+      genderPreference,
+      parkingAvailable,
+      minWalkabilityScore,
+      nearbyUniversities,
+      status = 'active',
+    } = searchDto;
+
+    // Build base where clause (excluding the filter we're counting)
+    const baseWhere: any = { status };
+
+    if (city) baseWhere.city = { contains: city, mode: 'insensitive' };
+    if (state) baseWhere.state = { contains: state, mode: 'insensitive' };
+    if (minPrice !== undefined) baseWhere.price = { ...baseWhere.price, gte: minPrice };
+    if (maxPrice !== undefined) baseWhere.price = { ...baseWhere.price, lte: maxPrice };
+    if (availabilityDate) {
+      baseWhere.availabilityDate = { lte: new Date(availabilityDate) };
+    }
+    if (amenities && amenities.length > 0) {
+      baseWhere.amenities = { hasSome: amenities };
+    }
+    if (minBedrooms !== undefined) baseWhere.bedrooms = { ...baseWhere.bedrooms, gte: minBedrooms };
+    if (maxBedrooms !== undefined) baseWhere.bedrooms = { ...baseWhere.bedrooms, lte: maxBedrooms };
+    if (minBathrooms !== undefined) baseWhere.bathrooms = { ...baseWhere.bathrooms, gte: minBathrooms };
+    if (maxBathrooms !== undefined) baseWhere.bathrooms = { ...baseWhere.bathrooms, lte: maxBathrooms };
+    if (minSquareFeet !== undefined) baseWhere.squareFeet = { ...baseWhere.squareFeet, gte: minSquareFeet };
+    if (maxSquareFeet !== undefined) baseWhere.squareFeet = { ...baseWhere.squareFeet, lte: maxSquareFeet };
+    if (propertyType) baseWhere.propertyType = propertyType;
+    if (petFriendly !== undefined) baseWhere.petFriendly = petFriendly;
+    if (smokingAllowed !== undefined) baseWhere.smokingAllowed = smokingAllowed;
+    if (genderPreference) baseWhere.genderPreference = genderPreference;
+    if (parkingAvailable !== undefined) baseWhere.parkingAvailable = parkingAvailable;
+    if (minWalkabilityScore !== undefined) baseWhere.walkabilityScore = { gte: minWalkabilityScore };
+    if (nearbyUniversities && nearbyUniversities.length > 0) {
+      baseWhere.nearbyUniversities = { hasSome: nearbyUniversities };
+    }
+
+    if (search) {
+      baseWhere.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+        { city: { contains: search, mode: 'insensitive' } },
+        { state: { contains: search, mode: 'insensitive' } },
+        { address: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    // Get all unique values for faceting
+    const allListings = await this.prisma.listing.findMany({
+      where: baseWhere,
+      select: {
+        amenities: true,
+        city: true,
+        state: true,
+        propertyType: true,
+        price: true,
+        bedrooms: true,
+        bathrooms: true,
+        squareFeet: true,
+        petFriendly: true,
+        smokingAllowed: true,
+        genderPreference: true,
+        parkingAvailable: true,
+      },
+    });
+
+    // Count amenities
+    const amenityCounts: Record<string, number> = {};
+    allListings.forEach((listing) => {
+      listing.amenities.forEach((amenity) => {
+        amenityCounts[amenity] = (amenityCounts[amenity] || 0) + 1;
+      });
+    });
+
+    // Count cities
+    const cityCounts: Record<string, number> = {};
+    allListings.forEach((listing) => {
+      if (listing.city) {
+        cityCounts[listing.city] = (cityCounts[listing.city] || 0) + 1;
+      }
+    });
+
+    // Count states
+    const stateCounts: Record<string, number> = {};
+    allListings.forEach((listing) => {
+      if (listing.state) {
+        stateCounts[listing.state] = (stateCounts[listing.state] || 0) + 1;
+      }
+    });
+
+    // Count property types
+    const propertyTypeCounts: Record<string, number> = {};
+    allListings.forEach((listing) => {
+      if (listing.propertyType) {
+        propertyTypeCounts[listing.propertyType] = (propertyTypeCounts[listing.propertyType] || 0) + 1;
+      }
+    });
+
+    // Price ranges
+    const prices = allListings.map((l) => l.price).filter((p) => p !== null);
+    const priceRange = {
+      min: prices.length > 0 ? Math.min(...prices) : 0,
+      max: prices.length > 0 ? Math.max(...prices) : 10000,
+    };
+
+    // Bedroom counts
+    const bedroomCounts: Record<string, number> = {};
+    allListings.forEach((listing) => {
+      if (listing.bedrooms !== null) {
+        const key = listing.bedrooms.toString();
+        bedroomCounts[key] = (bedroomCounts[key] || 0) + 1;
+      }
+    });
+
+    // Bathroom counts
+    const bathroomCounts: Record<string, number> = {};
+    allListings.forEach((listing) => {
+      if (listing.bathrooms !== null) {
+        const key = listing.bathrooms.toString();
+        bathroomCounts[key] = (bathroomCounts[key] || 0) + 1;
+      }
+    });
+
+    // Boolean feature counts
+    const featureCounts = {
+      petFriendly: allListings.filter((l) => l.petFriendly).length,
+      smokingAllowed: allListings.filter((l) => l.smokingAllowed).length,
+      parkingAvailable: allListings.filter((l) => l.parkingAvailable).length,
+    };
+
+    // Gender preference counts
+    const genderPreferenceCounts: Record<string, number> = {};
+    allListings.forEach((listing) => {
+      if (listing.genderPreference) {
+        genderPreferenceCounts[listing.genderPreference] = (genderPreferenceCounts[listing.genderPreference] || 0) + 1;
+      }
+    });
+
+    return {
+      success: true,
+      data: {
+        amenities: amenityCounts,
+        cities: cityCounts,
+        states: stateCounts,
+        propertyTypes: propertyTypeCounts,
+        bedrooms: bedroomCounts,
+        bathrooms: bathroomCounts,
+        priceRange,
+        features: featureCounts,
+        genderPreferences: genderPreferenceCounts,
+      },
+    };
+  }
 }
 
 

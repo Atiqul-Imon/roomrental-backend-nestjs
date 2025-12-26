@@ -89,6 +89,12 @@ export class ListingsController {
   ) {
     return this.listingsService.updateStatus(id, user.id, body.status);
   }
+
+  @Get('filters/counts')
+  @ApiOperation({ summary: 'Get filter counts for faceted search' })
+  getFilterCounts(@Query() searchDto: SearchListingsDto) {
+    return this.listingsService.getFilterCounts(searchDto);
+  }
 }
 
 
