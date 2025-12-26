@@ -16,3 +16,4 @@ export class CreateSavedSearchDto {
   emailAlerts?: boolean;
 }
 
+
