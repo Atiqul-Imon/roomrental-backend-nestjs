@@ -93,28 +93,56 @@ export class UploadService {
       this.logger.log(`Image uploaded successfully: ${result.fileId}, URL: ${result.url}`);
       return result.url;
     } catch (error: any) {
-      this.logger.error(`ImageKit upload failed: ${error.message || 'Unknown error'}`, error.stack);
-      this.logger.error(`Error details: ${JSON.stringify(error, Object.getOwnPropertyNames(error))}`);
+      // Extract error message properly
+      let errorMessage = 'Unknown error';
+      
+      if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      } else if (error?.error) {
+        errorMessage = typeof error.error === 'string' ? error.error : JSON.stringify(error.error);
+      } else if (error?.response?.data) {
+        const responseData = error.response.data;
+        if (typeof responseData === 'string') {
+          errorMessage = responseData;
+        } else if (responseData?.message) {
+          errorMessage = responseData.message;
+        } else if (responseData?.error) {
+          errorMessage = typeof responseData.error === 'string' ? responseData.error : JSON.stringify(responseData.error);
+        } else {
+          errorMessage = JSON.stringify(responseData);
+        }
+      } else {
+        // Try to stringify the error object safely
+        try {
+          errorMessage = JSON.stringify(error);
+        } catch {
+          errorMessage = error?.toString() || 'Unknown error';
+        }
+      }
+      
+      this.logger.error(`ImageKit upload failed: ${errorMessage}`, error.stack);
+      this.logger.error(`Error object: ${JSON.stringify(error, Object.getOwnPropertyNames(error))}`);
       
       // Provide more specific error messages
-      if (error.message?.includes('authentication') || error.message?.includes('Invalid')) {
+      const lowerMessage = errorMessage.toLowerCase();
+      if (lowerMessage.includes('authentication') || lowerMessage.includes('invalid') || lowerMessage.includes('credential')) {
         throw new BadRequestException('Image upload service authentication failed. Please contact support.');
       }
-      if (error.message?.includes('network') || error.message?.includes('timeout') || error.message?.includes('ECONNREFUSED')) {
+      if (lowerMessage.includes('network') || lowerMessage.includes('timeout') || lowerMessage.includes('econnrefused') || lowerMessage.includes('econnreset')) {
         throw new BadRequestException('Network error while uploading image. Please check your connection and try again.');
       }
-      if (error.message?.includes('ENOTFOUND') || error.message?.includes('getaddrinfo')) {
+      if (lowerMessage.includes('enotfound') || lowerMessage.includes('getaddrinfo') || lowerMessage.includes('dns')) {
         throw new BadRequestException('Cannot reach image upload service. Please try again later.');
       }
+      if (lowerMessage.includes('size') || lowerMessage.includes('too large') || lowerMessage.includes('exceed')) {
+        throw new BadRequestException('File size exceeds the maximum limit. Please use a smaller image.');
+      }
       
-      // Extract more details from error
-      const errorMessage = error.message || error.toString() || 'Unknown error';
-      const errorDetails = error.response?.data || error.body || error.data;
-      
-      this.logger.error(`Full error: ${JSON.stringify({ message: errorMessage, details: errorDetails, stack: error.stack })}`);
-      
+      // Return a user-friendly error message
       throw new BadRequestException(
-        `Failed to upload image: ${errorMessage}${errorDetails ? ` (${JSON.stringify(errorDetails)})` : ''}`
+        `Failed to upload image: ${errorMessage}`
       );
     }
   }
