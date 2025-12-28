@@ -25,7 +25,8 @@
     "prisma:studio": "prisma studio",
     "prisma:seed": "ts-node prisma/seed.ts",
     "seed": "ts-node prisma/seed.ts",
-    "create-admin": "ts-node src/scripts/create-super-admin.ts"
+    "create-admin": "ts-node src/scripts/create-super-admin.ts",
+    "check-users": "ts-node src/scripts/check-users.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
