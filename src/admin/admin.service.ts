@@ -133,64 +133,243 @@ export class AdminService {
   }
 
   async getAllListings(query: any) {
-    const { page = 1, limit = 20, status, search } = query;
-    const skip = (page - 1) * limit;
+    try {
+      const { page = 1, limit = 20, status, search } = query;
+      const skip = (Number(page) - 1) * Number(limit);
 
-    const where: any = {};
-    if (status) {
-      where.status = status;
-    }
-    if (search) {
-      where.OR = [
-        { title: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
-      ];
-    }
+      const where: any = {};
+      if (status) {
+        where.status = status;
+      }
+      if (search) {
+        where.OR = [
+          { title: { contains: search, mode: 'insensitive' } },
+          { description: { contains: search, mode: 'insensitive' } },
+        ];
+      }
 
-    const [listings, total] = await Promise.all([
-      this.prisma.listing.findMany({
-        where,
-        skip,
-        take: limit,
-        include: {
-          landlord: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
+      const [listings, total] = await Promise.all([
+        this.prisma.listing.findMany({
+          where,
+          skip,
+          take: Number(limit),
+          include: {
+            landlord: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
             },
           },
-        },
-        orderBy: { createdAt: 'desc' },
-      }),
-      this.prisma.listing.count({ where }),
-    ]);
+          orderBy: { createdAt: 'desc' },
+        }),
+        this.prisma.listing.count({ where }),
+      ]);
 
-    return {
-      success: true,
-      data: {
-        listings,
-        pagination: {
-          total,
-          page,
-          limit,
-          totalPages: Math.ceil(total / limit),
+      // Transform listings to match frontend expectations
+      const transformedListings = listings.map((listing) => {
+        try {
+          return {
+            _id: listing.id,
+            id: listing.id,
+            title: listing.title || '',
+            description: listing.description || '',
+            price: listing.price || 0,
+            bedrooms: listing.bedrooms || undefined,
+            bathrooms: listing.bathrooms || undefined,
+            squareFeet: listing.squareFeet || undefined,
+            location: {
+              city: listing.city || '',
+              state: listing.state || '',
+              zip: listing.zip || undefined,
+              address: listing.address || undefined,
+              coordinates: (listing.latitude && listing.longitude) ? {
+                lat: listing.latitude,
+                lng: listing.longitude,
+              } : undefined,
+            },
+            images: listing.images || [],
+            amenities: listing.amenities || [],
+            availabilityDate: listing.availabilityDate ? listing.availabilityDate.toISOString() : new Date().toISOString(),
+            status: listing.status,
+            createdAt: listing.createdAt ? listing.createdAt.toISOString() : new Date().toISOString(),
+            updatedAt: listing.updatedAt ? listing.updatedAt.toISOString() : new Date().toISOString(),
+            propertyType: listing.propertyType || undefined,
+            petFriendly: listing.petFriendly || false,
+            smokingAllowed: listing.smokingAllowed || false,
+            genderPreference: listing.genderPreference || undefined,
+            parkingAvailable: listing.parkingAvailable || false,
+            walkabilityScore: listing.walkabilityScore || undefined,
+            nearbyUniversities: listing.nearbyUniversities || [],
+            nearbyTransit: listing.nearbyTransit || [],
+            viewCount: listing.viewCount || 0,
+            // Transform landlord to landlordId format expected by frontend
+            landlordId: listing.landlord ? {
+              _id: listing.landlord.id,
+              name: listing.landlord.name || '',
+              email: listing.landlord.email || '',
+            } : {
+              _id: '',
+              name: 'N/A',
+              email: 'N/A',
+            },
+            // Also include landlord for backward compatibility
+            landlord: listing.landlord ? {
+              id: listing.landlord.id,
+              name: listing.landlord.name || '',
+              email: listing.landlord.email || '',
+            } : undefined,
+          };
+        } catch (transformError) {
+          console.error('Error transforming listing:', listing.id, transformError);
+          // Return minimal listing data if transformation fails
+          return {
+            _id: listing.id,
+            id: listing.id,
+            title: listing.title || 'Untitled',
+            description: listing.description || '',
+            price: listing.price || 0,
+            location: {
+              city: '',
+              state: '',
+            },
+            images: [],
+            amenities: [],
+            availabilityDate: new Date().toISOString(),
+            status: listing.status,
+            createdAt: listing.createdAt ? listing.createdAt.toISOString() : new Date().toISOString(),
+            updatedAt: listing.updatedAt ? listing.updatedAt.toISOString() : new Date().toISOString(),
+            landlordId: {
+              _id: '',
+              name: 'N/A',
+              email: 'N/A',
+            },
+          };
+        }
+      });
+
+      return {
+        success: true,
+        data: {
+          listings: transformedListings,
+          pagination: {
+            total,
+            page: Number(page),
+            limit: Number(limit),
+            totalPages: Math.ceil(total / Number(limit)),
+          },
         },
-      },
-    };
+      };
+    } catch (error) {
+      console.error('Error in getAllListings:', error);
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
+      throw error;
+    }
   }
 
-  async getAllLandlords() {
-    const landlords = await this.prisma.user.findMany({
-      where: { role: 'landlord' },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-      },
-      orderBy: { name: 'asc' },
-    });
-    return { success: true, data: landlords };
+  async getAllLandlords(query: any) {
+    try {
+      const { page = 1, limit = 20, search, emailVerified } = query;
+      const skip = (Number(page) - 1) * Number(limit);
+
+      const where: any = {
+        role: 'landlord',
+      };
+
+      // Search filter
+      if (search) {
+        where.OR = [
+          { email: { contains: search, mode: 'insensitive' } },
+          { name: { contains: search, mode: 'insensitive' } },
+        ];
+      }
+
+      // Email verification filter
+      if (emailVerified !== undefined) {
+        where.emailVerified = emailVerified === 'true' || emailVerified === true;
+      }
+
+      const [landlords, total] = await Promise.all([
+        this.prisma.user.findMany({
+          where,
+          skip,
+          take: Number(limit),
+          orderBy: { createdAt: 'desc' },
+        }),
+        this.prisma.user.count({ where }),
+      ]);
+
+      // Calculate stats for each landlord
+      const landlordsWithStats = await Promise.all(
+        landlords.map(async (landlord) => {
+          // Get all listings for this landlord
+          const listings = await this.prisma.listing.findMany({
+            where: { landlordId: landlord.id },
+            select: {
+              id: true,
+              price: true,
+              status: true,
+            },
+          });
+
+          const stats = {
+            totalListings: listings.length,
+            activeListings: listings.filter((l) => l.status === 'available').length,
+            pendingListings: listings.filter((l) => l.status === 'pending').length,
+            rentedListings: listings.filter((l) => l.status === 'rented').length,
+            totalValue: listings.reduce((sum, listing) => sum + listing.price, 0),
+            averagePrice: listings.length > 0
+              ? listings.reduce((sum, listing) => sum + listing.price, 0) / listings.length
+              : 0,
+          };
+
+          // Transform landlord to match frontend expectations
+          return {
+            id: landlord.id,
+            _id: landlord.id,
+            email: landlord.email || '',
+            name: landlord.name || '',
+            role: landlord.role,
+            profileImage: landlord.profileImage || null,
+            bio: landlord.bio || null,
+            phone: landlord.phone || null,
+            verification: {
+              emailVerified: landlord.emailVerified || false,
+              phoneVerified: false,
+              idVerified: landlord.verification === 'verified',
+            },
+            createdAt: landlord.createdAt ? landlord.createdAt.toISOString() : new Date().toISOString(),
+            updatedAt: landlord.updatedAt ? landlord.updatedAt.toISOString() : new Date().toISOString(),
+            preferences: landlord.preferences || null,
+            stats,
+          };
+        })
+      );
+
+      return {
+        success: true,
+        data: {
+          landlords: landlordsWithStats,
+          pagination: {
+            total,
+            page: Number(page),
+            limit: Number(limit),
+            totalPages: Math.ceil(total / Number(limit)),
+          },
+        },
+      };
+    } catch (error) {
+      console.error('Error in getAllLandlords:', error);
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
+      throw error;
+    }
   }
 
   async getAllAdmins(query: any) {

@@ -32,14 +32,24 @@ export class AdminController {
 
   @Get('listings')
   @ApiOperation({ summary: 'Get all listings (admin only)' })
-  getAllListings(@Query() query: any) {
-    return this.adminService.getAllListings(query);
+  async getAllListings(@Query() query: any) {
+    try {
+      return await this.adminService.getAllListings(query);
+    } catch (error) {
+      console.error('Error in getAllListings controller:', error);
+      throw error;
+    }
   }
 
   @Get('landlords')
-  @ApiOperation({ summary: 'Get all landlords for selection (admin only)' })
-  getAllLandlords() {
-    return this.adminService.getAllLandlords();
+  @ApiOperation({ summary: 'Get all landlords with stats (admin only)' })
+  async getAllLandlords(@Query() query: any) {
+    try {
+      return await this.adminService.getAllLandlords(query);
+    } catch (error) {
+      console.error('Error in getAllLandlords controller:', error);
+      throw error;
+    }
   }
 
   @Get('admins')

@@ -412,7 +412,7 @@ export class ListingsService {
     return result;
   }
 
-  async update(id: string, userId: string, updateDto: UpdateListingDto) {
+  async update(id: string, userId: string, updateDto: UpdateListingDto, userRole?: string) {
     const listing = await this.prisma.listing.findUnique({
       where: { id },
     });
@@ -421,7 +421,9 @@ export class ListingsService {
       throw new NotFoundException('Listing not found');
     }
 
-    if (listing.landlordId !== userId) {
+    // Allow admins, super_admins, and staff to update any listing
+    const isAdmin = userRole && ['admin', 'super_admin', 'staff'].includes(userRole);
+    if (!isAdmin && listing.landlordId !== userId) {
       throw new ForbiddenException('You can only update your own listings');
     }
 
@@ -471,7 +473,7 @@ export class ListingsService {
     };
   }
 
-  async remove(id: string, userId: string) {
+  async remove(id: string, userId: string, userRole?: string) {
     const listing = await this.prisma.listing.findUnique({
       where: { id },
     });
@@ -480,7 +482,9 @@ export class ListingsService {
       throw new NotFoundException('Listing not found');
     }
 
-    if (listing.landlordId !== userId) {
+    // Allow admins, super_admins, and staff to delete any listing
+    const isAdmin = userRole && ['admin', 'super_admin', 'staff'].includes(userRole);
+    if (!isAdmin && listing.landlordId !== userId) {
       throw new ForbiddenException('You can only delete your own listings');
     }
 
@@ -573,7 +577,7 @@ export class ListingsService {
     return degrees * (Math.PI / 180);
   }
 
-  async updateStatus(id: string, userId: string, status: string) {
+  async updateStatus(id: string, userId: string, status: string, userRole?: string) {
     const listing = await this.prisma.listing.findUnique({
       where: { id },
     });
@@ -582,7 +586,9 @@ export class ListingsService {
       throw new NotFoundException('Listing not found');
     }
 
-    if (listing.landlordId !== userId) {
+    // Allow admins, super_admins, and staff to update any listing status
+    const isAdmin = userRole && ['admin', 'super_admin', 'staff'].includes(userRole);
+    if (!isAdmin && listing.landlordId !== userId) {
       throw new ForbiddenException('You can only update your own listings');
     }
 

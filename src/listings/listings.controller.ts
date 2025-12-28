@@ -59,7 +59,7 @@ export class ListingsController {
     @Body() updateListingDto: UpdateListingDto,
     @CurrentUser() user: any,
   ) {
-    return this.listingsService.update(id, user.id, updateListingDto);
+    return this.listingsService.update(id, user.id, updateListingDto, user.role);
   }
 
   @Delete(':id')
@@ -67,7 +67,7 @@ export class ListingsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete listing' })
   remove(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.listingsService.remove(id, user.id);
+    return this.listingsService.remove(id, user.id, user.role);
   }
 
   @Get('my/listings')
@@ -88,7 +88,7 @@ export class ListingsController {
     @Body() body: { status: string },
     @CurrentUser() user: any,
   ) {
-    return this.listingsService.updateStatus(id, user.id, body.status);
+    return this.listingsService.updateStatus(id, user.id, body.status, user.role);
   }
 
   @Get('filters/counts')
