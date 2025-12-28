@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, Param, Put, Delete, Body, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -21,8 +21,13 @@ export class AdminController {
 
   @Get('users')
   @ApiOperation({ summary: 'Get all users (admin only)' })
-  getAllUsers(@Query() query: any) {
-    return this.adminService.getAllUsers(query);
+  async getAllUsers(@Query() query: any) {
+    try {
+      return await this.adminService.getAllUsers(query);
+    } catch (error) {
+      console.error('Error in getAllUsers controller:', error);
+      throw error;
+    }
   }
 
   @Get('listings')
@@ -35,6 +40,50 @@ export class AdminController {
   @ApiOperation({ summary: 'Get all landlords for selection (admin only)' })
   getAllLandlords() {
     return this.adminService.getAllLandlords();
+  }
+
+  @Get('admins')
+  @ApiOperation({ summary: 'Get all admin users (admin only)' })
+  async getAllAdmins(@Query() query: any) {
+    try {
+      return await this.adminService.getAllAdmins(query);
+    } catch (error) {
+      console.error('Error in getAllAdmins controller:', error);
+      throw error;
+    }
+  }
+
+  @Get('users/:id')
+  @ApiOperation({ summary: 'Get user by ID (admin only)' })
+  async getUserById(@Param('id') id: string) {
+    try {
+      return await this.adminService.getUserById(id);
+    } catch (error) {
+      console.error('Error in getUserById controller:', error);
+      throw error;
+    }
+  }
+
+  @Put('users/:id')
+  @ApiOperation({ summary: 'Update user (admin only)' })
+  async updateUser(@Param('id') id: string, @Body() body: any) {
+    try {
+      return await this.adminService.updateUser(id, body);
+    } catch (error) {
+      console.error('Error in updateUser controller:', error);
+      throw error;
+    }
+  }
+
+  @Delete('users/:id')
+  @ApiOperation({ summary: 'Delete user (admin only)' })
+  async deleteUser(@Param('id') id: string) {
+    try {
+      return await this.adminService.deleteUser(id);
+    } catch (error) {
+      console.error('Error in deleteUser controller:', error);
+      throw error;
+    }
   }
 }
 
