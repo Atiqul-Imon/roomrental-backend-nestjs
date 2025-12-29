@@ -2,15 +2,22 @@ import {
   Controller,
   Get,
   Post,
+  Put,
+  Delete,
   Body,
   Param,
   Query,
   UseGuards,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { CreateMessageDto } from './dto/create-message.dto';
+import { UpdateMessageDto } from './dto/update-message.dto';
+import { SearchMessagesDto } from './dto/search-messages.dto';
 
 @ApiTags('Chat')
 @Controller('chat')
@@ -74,21 +81,69 @@ export class ChatController {
 
   @Post('conversations/:conversationId/messages')
   @ApiOperation({ summary: 'Send message' })
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   async sendMessage(
     @Param('conversationId') conversationId: string,
-    @Body() body: { content: string; messageType?: string; attachments?: string[] },
+    @Body() createMessageDto: CreateMessageDto,
     @CurrentUser() user: any,
   ) {
     const message = await this.chatService.sendMessage(
       conversationId,
       user.id,
-      body.content,
-      body.messageType,
-      body.attachments,
+      createMessageDto,
     );
     return {
       success: true,
       data: message,
+    };
+  }
+
+  @Put('messages/:messageId')
+  @ApiOperation({ summary: 'Update message' })
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async updateMessage(
+    @Param('messageId') messageId: string,
+    @Body() updateMessageDto: UpdateMessageDto,
+    @CurrentUser() user: any,
+  ) {
+    const message = await this.chatService.updateMessage(
+      messageId,
+      user.id,
+      updateMessageDto,
+    );
+    return {
+      success: true,
+      data: message,
+    };
+  }
+
+  @Delete('messages/:messageId')
+  @ApiOperation({ summary: 'Delete message' })
+  async deleteMessage(
+    @Param('messageId') messageId: string,
+    @CurrentUser() user: any,
+  ) {
+    await this.chatService.deleteMessage(messageId, user.id);
+    return { success: true };
+  }
+
+  @Get('conversations/:conversationId/messages/search')
+  @ApiOperation({ summary: 'Search messages in conversation' })
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async searchMessages(
+    @Param('conversationId') conversationId: string,
+    @Query() searchDto: SearchMessagesDto,
+    @CurrentUser() user: any,
+  ) {
+    const result = await this.chatService.searchMessages(
+      conversationId,
+      user.id,
+      searchDto,
+    );
+    return {
+      success: true,
+      data: result.messages,
+      pagination: result.pagination,
     };
   }
 

@@ -145,6 +145,20 @@ export class SocketGateway implements OnGatewayConnection, OnGatewayDisconnect {
     });
   }
 
+  @SubscribeMessage('mark-message-read')
+  handleMarkMessageRead(
+    @MessageBody() data: { messageId: string; conversationId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    // Emit read receipt to sender
+    const room = `conversation:${data.conversationId}`;
+    client.to(room).emit('message-read', {
+      messageId: data.messageId,
+      readBy: client.data.userId,
+      conversationId: data.conversationId,
+    });
+  }
+
   // Helper methods
   getSocketIdForUser(userId: string): string | undefined {
     return this.connectedUsers.get(userId);
@@ -152,6 +166,19 @@ export class SocketGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   isUserOnline(userId: string): boolean {
     return this.connectedUsers.has(userId);
+  }
+
+  // Emit message update to conversation room
+  emitMessageUpdate(conversationId: string, message: any) {
+    this.server.to(`conversation:${conversationId}`).emit('message-updated', message);
+  }
+
+  // Emit message deletion to conversation room
+  emitMessageDelete(conversationId: string, messageId: string) {
+    this.server.to(`conversation:${conversationId}`).emit('message-deleted', {
+      messageId,
+      conversationId,
+    });
   }
 }
 
