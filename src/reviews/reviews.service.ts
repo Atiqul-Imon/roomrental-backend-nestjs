@@ -84,7 +84,22 @@ export class ReviewsService {
             select: {
               id: true,
               name: true,
+              email: true,
               profileImage: true,
+            },
+          },
+          reviewee: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              profileImage: true,
+            },
+          },
+          listing: {
+            select: {
+              id: true,
+              title: true,
             },
           },
         },
