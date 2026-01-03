@@ -252,23 +252,30 @@ export class ChatService {
       take: limit,
     });
 
-    // Get unread counts for each conversation
-    const conversationsWithUnread = await Promise.all(
-      conversations.map(async (conv) => {
-        const unreadCount = await this.prisma.message.count({
-          where: {
-            conversationId: conv.id,
-            senderId: { not: userId },
-            readAt: null,
-          },
-        });
+    // Get all unread counts in a single query (fixes N+1 query problem)
+    const conversationIds = conversations.map((conv) => conv.id);
+    const unreadCounts = await this.prisma.message.groupBy({
+      by: ['conversationId'],
+      where: {
+        conversationId: { in: conversationIds },
+        senderId: { not: userId },
+        readAt: null,
+      },
+      _count: {
+        id: true,
+      },
+    });
 
-        return {
-          ...conv,
-          unreadCount,
-        };
-      })
+    // Create a map of conversationId -> unreadCount
+    const unreadCountMap = new Map(
+      unreadCounts.map((item) => [item.conversationId, item._count.id])
     );
+
+    // Map conversations to include unreadCount
+    const conversationsWithUnread = conversations.map((conv) => ({
+      ...conv,
+      unreadCount: unreadCountMap.get(conv.id) || 0,
+    }));
 
     return conversationsWithUnread;
   }

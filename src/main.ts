@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
+import * as compression from 'compression';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -10,6 +11,12 @@ import { CacheInterceptor } from './common/interceptors/cache.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  
+  // Response compression (30-50% smaller responses)
+  app.use(compression({
+    level: 6, // Balance between speed and compression (1-9)
+    threshold: 1024, // Only compress responses > 1KB
+  }));
   
   // Security
   app.use(helmet());
