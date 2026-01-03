@@ -69,9 +69,9 @@ export class ListingsService {
       },
     });
 
-    // Invalidate listings cache and search static data cache
+    // Granular cache invalidation - only invalidate search static data
+    // Listings cache will be invalidated naturally as users search
     await Promise.all([
-      this.cache.invalidatePattern('listings:*'),
       this.cache.del('search:cities'),
       this.cache.del('search:states'),
       this.cache.del('search:amenities'),
@@ -457,14 +457,15 @@ export class ListingsService {
       },
     });
 
-    // Invalidate cache for this listing, listings list, and search static data
+    // Granular cache invalidation - only invalidate specific keys
     await Promise.all([
-      this.cache.del(`listing:${id}`),
-      this.cache.invalidatePattern('listings:*'),
-      this.cache.del('search:cities'),
-      this.cache.del('search:states'),
-      this.cache.del('search:amenities'),
-      this.cache.del('search:price-range'),
+      this.cache.del(`listing:${id}`), // Specific listing
+      this.cache.invalidatePattern(`my-listings:${userId}:*`), // User's listings
+      // Only invalidate search caches if location changed
+      ...(updateDto.location ? [
+        this.cache.del('search:cities'),
+        this.cache.del('search:states'),
+      ] : []),
     ]);
 
     return {
@@ -492,14 +493,11 @@ export class ListingsService {
       where: { id },
     });
 
-    // Invalidate cache for this listing, listings list, and search static data
+    // Granular cache invalidation - only invalidate specific keys
     await Promise.all([
-      this.cache.del(`listing:${id}`),
-      this.cache.invalidatePattern('listings:*'),
-      this.cache.del('search:cities'),
-      this.cache.del('search:states'),
-      this.cache.del('search:amenities'),
-      this.cache.del('search:price-range'),
+      this.cache.del(`listing:${id}`), // Specific listing
+      this.cache.invalidatePattern(`my-listings:${userId}:*`), // User's listings
+      // Search caches will naturally expire, no need to invalidate all listings cache
     ]);
 
     return {
@@ -607,12 +605,11 @@ export class ListingsService {
       },
     });
 
-    // Invalidate cache for this listing, listings list, my-listings, and search static data
+    // Granular cache invalidation - only invalidate specific keys
     await Promise.all([
-      this.cache.del(`listing:${id}`),
-      this.cache.invalidatePattern('listings:*'),
-      this.cache.invalidatePattern(`my-listings:${userId}:*`),
-      this.cache.del('search:price-range'), // Price range changes when status changes
+      this.cache.del(`listing:${id}`), // Specific listing
+      this.cache.invalidatePattern(`my-listings:${userId}:*`), // User's listings
+      // Search caches will naturally expire, no need to invalidate
     ]);
 
     return {
