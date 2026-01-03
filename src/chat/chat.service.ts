@@ -1,5 +1,6 @@
 import { Injectable, Logger, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
+import { CacheService } from '../cache/cache.service';
 import { SocketGateway } from '../socket/socket.gateway';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { UpdateMessageDto } from './dto/update-message.dto';
@@ -13,6 +14,7 @@ export class ChatService {
 
   constructor(
     private prisma: PrismaService,
+    private cache: CacheService,
     private socketGateway: SocketGateway,
   ) {
     // Clean up rate limit map every minute
@@ -205,6 +207,11 @@ export class ChatService {
           message,
         });
 
+      // Invalidate unread count cache for the recipient (async, don't wait)
+      this.cache.del(`chat-unread-count:${recipientId}`).catch(() => {
+        // Ignore cache errors
+      });
+
       // Check if recipient is online for immediate delivery status
       if (this.socketGateway.isUserOnline(recipientId)) {
         // Mark as delivered immediately if user is online
@@ -309,20 +316,31 @@ export class ChatService {
         readAt: new Date(),
       },
     });
+    
+    // Invalidate unread count cache
+    await this.cache.del(`chat-unread-count:${userId}`);
   }
 
   async getUnreadCount(userId: string) {
-    const count = await this.prisma.message.count({
-      where: {
-        conversation: {
-          OR: [{ participant1Id: userId }, { participant2Id: userId }],
-        },
-        senderId: { not: userId },
-        readAt: null,
+    // Cache unread count for 30 seconds (matches frontend refetch interval)
+    const cacheKey = `chat-unread-count:${userId}`;
+    
+    return this.cache.getOrSet(
+      cacheKey,
+      async () => {
+        const count = await this.prisma.message.count({
+          where: {
+            conversation: {
+              OR: [{ participant1Id: userId }, { participant2Id: userId }],
+            },
+            senderId: { not: userId },
+            readAt: null,
+          },
+        });
+        return count;
       },
-    });
-
-    return count;
+      30, // 30 seconds cache
+    );
   }
 
   async updateMessage(
