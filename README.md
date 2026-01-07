@@ -18,7 +18,7 @@ Production-ready NestJS backend API for RoomRentalUSA platform.
 - Node.js 18+ (20+ recommended)
 - PostgreSQL database (Supabase)
 - Cloudinary account (for file uploads)
-- Digital Ocean droplet (Ubuntu 22.04+)
+- Digital Ocean droplet (Ubuntu 24.04 LTS recommended)
 
 ## 🛠️ Local Development
 
