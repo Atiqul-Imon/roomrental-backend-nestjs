@@ -29,12 +29,6 @@ jobs:
         run: npm test || true
         continue-on-error: true
       
-      - name: Add SSH known hosts
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.DROPLET_IP }} >> ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts
-      
       - name: Deploy to Digital Ocean
         uses: appleboy/ssh-action@v1.0.3
         with:
