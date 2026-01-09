@@ -65,8 +65,11 @@ export class UploadService {
     const privateKey = this.configService.get<string>('IMAGEKIT_PRIVATE_KEY');
     const urlEndpoint = this.configService.get<string>('IMAGEKIT_URL_ENDPOINT');
 
+    this.logger.log(`ImageKit config check - PublicKey: ${publicKey ? 'Set' : 'Missing'}, PrivateKey: ${privateKey ? 'Set' : 'Missing'}, UrlEndpoint: ${urlEndpoint ? 'Set' : 'Missing'}`);
+
     if (!publicKey || !privateKey || !urlEndpoint) {
       this.logger.error('ImageKit credentials not configured');
+      this.logger.error(`Missing: ${!publicKey ? 'IMAGEKIT_PUBLIC_KEY ' : ''}${!privateKey ? 'IMAGEKIT_PRIVATE_KEY ' : ''}${!urlEndpoint ? 'IMAGEKIT_URL_ENDPOINT' : ''}`);
       throw new BadRequestException('Image upload service is not configured. Please contact support.');
     }
 
@@ -132,13 +135,25 @@ export class UploadService {
       
       this.logger.error(`ImageKit upload failed: ${errorMessage}`, error.stack);
       this.logger.error(`Error object: ${JSON.stringify(error, Object.getOwnPropertyNames(error))}`);
+      this.logger.error(`Full error details:`, {
+        message: error?.message,
+        response: error?.response?.data,
+        help: error?.help,
+        error: error?.error,
+        status: error?.status,
+        statusCode: error?.statusCode,
+      });
       
       // Provide more specific error messages
       const lowerMessage = errorMessage.toLowerCase();
       
       // Check for ImageKit Internal Server Error
       if (lowerMessage.includes('internal server error') || lowerMessage.includes('"help":"internal server error"')) {
-        throw new BadRequestException('Image upload service is temporarily unavailable. Please try again in a few moments or contact support if the issue persists.');
+        // Log the actual error for debugging
+        this.logger.error(`ImageKit Internal Server Error. Full error: ${JSON.stringify(error)}`);
+        throw new BadRequestException(
+          `Image upload service error: ${errorMessage}. Please check ImageKit configuration and credentials.`
+        );
       }
       
       if (lowerMessage.includes('authentication') || lowerMessage.includes('invalid') || lowerMessage.includes('credential') || lowerMessage.includes('unauthorized')) {
