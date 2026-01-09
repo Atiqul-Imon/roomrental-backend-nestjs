@@ -21,3 +21,5 @@ export class UpdateSavedSearchDto extends PartialType(CreateSavedSearchDto) {}
 
 
 
+
+
