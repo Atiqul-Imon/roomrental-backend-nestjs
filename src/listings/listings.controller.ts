@@ -34,7 +34,7 @@ export class ListingsController {
     const attributedLandlordId = (user.role !== 'landlord' && createListingDto.landlordId)
       ? createListingDto.landlordId
       : user.id;
-    return this.listingsService.create(attributedLandlordId, createListingDto);
+    return this.listingsService.create(attributedLandlordId, createListingDto, user.role);
   }
 
   @Get()

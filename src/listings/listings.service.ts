@@ -22,7 +22,7 @@ export class ListingsService {
     private searchHistoryService: SearchHistoryService,
   ) {}
 
-  async create(landlordId: string, createDto: CreateListingDto) {
+  async create(landlordId: string, createDto: CreateListingDto, userRole?: string) {
     const { location, availabilityDate, ...rest } = createDto;
 
     // If a landlordId is explicitly provided (by an admin), validate it
@@ -36,9 +36,16 @@ export class ListingsService {
       landlordId = createDto.landlordId; // Use the provided landlordId
     }
 
+    // Determine listing status based on user role
+    // Landlords create listings with 'pending' status (requires admin approval)
+    // Admins/staff create listings with 'available' status (auto-approved)
+    const isAdmin = userRole && ['admin', 'super_admin', 'staff'].includes(userRole);
+    const listingStatus = createDto.status || (isAdmin ? 'available' : 'pending');
+
     const listing = await this.prisma.listing.create({
       data: {
         ...rest,
+        status: listingStatus,
         landlordId,
         city: location.city,
         state: location.state,
@@ -69,13 +76,13 @@ export class ListingsService {
       },
     });
 
-    // Granular cache invalidation - only invalidate search static data
-    // Listings cache will be invalidated naturally as users search
+    // Cache invalidation - invalidate search static data and all listings cache
     await Promise.all([
       this.cache.del('search:cities'),
       this.cache.del('search:states'),
       this.cache.del('search:amenities'),
       this.cache.del('search:price-range'),
+      this.cache.invalidatePattern('listings:*'), // Invalidate all listings cache for immediate visibility
     ]);
 
     return {
@@ -457,10 +464,11 @@ export class ListingsService {
       },
     });
 
-    // Granular cache invalidation - only invalidate specific keys
+    // Cache invalidation - invalidate specific keys and all listings cache
     await Promise.all([
       this.cache.del(`listing:${id}`), // Specific listing
       this.cache.invalidatePattern(`my-listings:${userId}:*`), // User's listings
+      this.cache.invalidatePattern('listings:*'), // Invalidate all listings cache for immediate visibility
       // Only invalidate search caches if location changed
       ...(updateDto.location ? [
         this.cache.del('search:cities'),
@@ -493,11 +501,11 @@ export class ListingsService {
       where: { id },
     });
 
-    // Granular cache invalidation - only invalidate specific keys
+    // Cache invalidation - invalidate specific keys and all listings cache
     await Promise.all([
       this.cache.del(`listing:${id}`), // Specific listing
       this.cache.invalidatePattern(`my-listings:${userId}:*`), // User's listings
-      // Search caches will naturally expire, no need to invalidate all listings cache
+      this.cache.invalidatePattern('listings:*'), // Invalidate all listings cache for immediate visibility
     ]);
 
     return {
@@ -605,11 +613,11 @@ export class ListingsService {
       },
     });
 
-    // Granular cache invalidation - only invalidate specific keys
+    // Cache invalidation - invalidate specific keys and all listings cache
     await Promise.all([
       this.cache.del(`listing:${id}`), // Specific listing
       this.cache.invalidatePattern(`my-listings:${userId}:*`), // User's listings
-      // Search caches will naturally expire, no need to invalidate
+      this.cache.invalidatePattern('listings:*'), // Invalidate all listings cache for immediate visibility
     ]);
 
     return {
