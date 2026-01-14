@@ -160,7 +160,19 @@ export class EmailService {
         headers: {
           'X-Entity-Ref-ID': `otp-${Date.now()}`,
           'X-Mailer': 'RoomRentalUSA',
+          'List-Unsubscribe': `<mailto:${this.fromEmail}?subject=unsubscribe>`,
+          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
         },
+        tags: [
+          {
+            name: 'category',
+            value: 'verification',
+          },
+          {
+            name: 'type',
+            value: 'otp',
+          },
+        ],
       });
 
       if (error) {
