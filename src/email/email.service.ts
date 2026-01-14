@@ -36,45 +36,118 @@ export class EmailService {
 
       const htmlContent = `
         <!DOCTYPE html>
-        <html>
+        <html lang="en">
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Email Verification</title>
+          <meta http-equiv="X-UA-Compatible" content="IE=edge">
+          <title>Verify Your Email - RoomRentalUSA</title>
         </head>
-        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-            <h1 style="color: white; margin: 0;">RoomRentalUSA</h1>
-          </div>
-          <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e0e0e0; border-top: none;">
-            <h2 style="color: #333; margin-top: 0;">Verify Your Email Address</h2>
-            <p>Thank you for signing up! Please use the verification code below to complete your registration:</p>
-            <div style="background: white; border: 2px solid #667eea; border-radius: 8px; padding: 20px; text-align: center; margin: 30px 0;">
-              <div style="font-size: 32px; font-weight: bold; color: #667eea; letter-spacing: 8px; font-family: 'Courier New', monospace;">
-                ${otpCode}
-              </div>
-            </div>
-            <p style="color: #666; font-size: 14px;">This code will expire in 10 minutes.</p>
-            <p style="color: #666; font-size: 14px;">If you didn't request this code, please ignore this email.</p>
-            <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 30px 0;">
-            <p style="color: #999; font-size: 12px; text-align: center; margin: 0;">
-              © ${new Date().getFullYear()} RoomRentalUSA. All rights reserved.
-            </p>
-          </div>
+        <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f7fa; line-height: 1.6;">
+          <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f5f7fa; padding: 20px;">
+            <tr>
+              <td align="center" style="padding: 20px 0;">
+                <table role="presentation" style="width: 100%; max-width: 600px; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); overflow: hidden;">
+                  <!-- Header with Gradient -->
+                  <tr>
+                    <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 30px; text-align: center;">
+                      <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">RoomRentalUSA</h1>
+                      <p style="margin: 8px 0 0 0; color: rgba(255, 255, 255, 0.9); font-size: 14px; font-weight: 400;">Find Your Perfect Home</p>
+                    </td>
+                  </tr>
+                  
+                  <!-- Main Content -->
+                  <tr>
+                    <td style="padding: 40px 30px;">
+                      <!-- Welcome Message -->
+                      <h2 style="margin: 0 0 16px 0; color: #1a202c; font-size: 24px; font-weight: 600; line-height: 1.3;">Verify Your Email Address</h2>
+                      <p style="margin: 0 0 32px 0; color: #4a5568; font-size: 16px; line-height: 1.6;">
+                        Thank you for signing up! We're excited to have you join our community. Please use the verification code below to complete your registration.
+                      </p>
+                      
+                      <!-- OTP Code Box -->
+                      <table role="presentation" style="width: 100%; margin: 32px 0;">
+                        <tr>
+                          <td align="center" style="padding: 0;">
+                            <div style="background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%); border: 2px solid #e2e8f0; border-radius: 12px; padding: 32px 24px; margin: 0 auto; max-width: 400px;">
+                              <p style="margin: 0 0 12px 0; color: #718096; font-size: 13px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px;">Verification Code</p>
+                              <div style="font-size: 42px; font-weight: 700; color: #667eea; letter-spacing: 12px; font-family: 'Courier New', 'Monaco', monospace; text-align: center; padding: 8px 0;">
+                                ${otpCode}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      </table>
+                      
+                      <!-- Instructions -->
+                      <div style="background-color: #fef5e7; border-left: 4px solid #f6ad55; padding: 16px 20px; border-radius: 6px; margin: 24px 0;">
+                        <p style="margin: 0; color: #744210; font-size: 14px; line-height: 1.5;">
+                          <strong>⏱️ Important:</strong> This code will expire in <strong>10 minutes</strong> for security reasons.
+                        </p>
+                      </div>
+                      
+                      <!-- Security Notice -->
+                      <p style="margin: 24px 0 0 0; color: #718096; font-size: 14px; line-height: 1.6; text-align: center;">
+                        If you didn't request this code, please ignore this email or contact our support team.
+                      </p>
+                    </td>
+                  </tr>
+                  
+                  <!-- Footer -->
+                  <tr>
+                    <td style="background-color: #f7fafc; padding: 24px 30px; border-top: 1px solid #e2e8f0;">
+                      <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                          <td align="center" style="padding: 0;">
+                            <p style="margin: 0 0 12px 0; color: #718096; font-size: 12px; line-height: 1.5;">
+                              © ${new Date().getFullYear()} RoomRentalUSA. All rights reserved.
+                            </p>
+                            <p style="margin: 0; color: #a0aec0; font-size: 11px;">
+                              This is an automated email. Please do not reply to this message.
+                            </p>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+                
+                <!-- Bottom Spacing -->
+                <table role="presentation" style="width: 100%; max-width: 600px; margin-top: 20px;">
+                  <tr>
+                    <td align="center" style="padding: 0;">
+                      <p style="margin: 0; color: #a0aec0; font-size: 11px; line-height: 1.5;">
+                        Having trouble? Contact us at <a href="mailto:admin@roomrentalusa.com" style="color: #667eea; text-decoration: none;">admin@roomrentalusa.com</a>
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
         </body>
         </html>
       `;
 
       const textContent = `
         Verify Your Email Address - RoomRentalUSA
+        ===========================================
         
-        Thank you for signing up! Please use the verification code below to complete your registration:
+        Thank you for signing up! We're excited to have you join our community.
+        
+        Please use the verification code below to complete your registration:
         
         Verification Code: ${otpCode}
         
-        This code will expire in 10 minutes.
+        ⏱️ Important: This code will expire in 10 minutes for security reasons.
         
-        If you didn't request this code, please ignore this email.
+        If you didn't request this code, please ignore this email or contact our support team.
+        
+        ---
+        © ${new Date().getFullYear()} RoomRentalUSA. All rights reserved.
+        This is an automated email. Please do not reply to this message.
+        
+        Having trouble? Contact us at admin@roomrentalusa.com
       `;
 
       const { data, error } = await this.resend.emails.send({
@@ -83,6 +156,11 @@ export class EmailService {
         subject: 'Verify Your Email - RoomRentalUSA',
         html: htmlContent,
         text: textContent,
+        replyTo: this.fromEmail,
+        headers: {
+          'X-Entity-Ref-ID': `otp-${Date.now()}`,
+          'X-Mailer': 'RoomRentalUSA',
+        },
       });
 
       if (error) {
