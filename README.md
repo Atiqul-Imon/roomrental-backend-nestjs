@@ -102,6 +102,13 @@ Required environment variables:
 - `JWT_SECRET`: Strong secret key
 - `CLOUDINARY_*`: Cloudinary credentials
 - `CORS_ORIGIN`: Your frontend URL
+- `SMTP_HOST`: Email server (default: mail.privateemail.com)
+- `SMTP_PORT`: Email port (default: 587)
+- `SMTP_SECURE`: Use SSL (default: false)
+- `SMTP_USER`: Email username (default: admin@roomrentalusa.com)
+- `SMTP_PASS`: Email password (required)
+- `SMTP_FROM`: Sender email address
+- `SMTP_FROM_NAME`: Sender display name
 - `NODE_ENV=production`
 
 #### Step 4: Deploy

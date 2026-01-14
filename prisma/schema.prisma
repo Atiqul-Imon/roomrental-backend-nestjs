@@ -256,3 +256,18 @@ model SearchHistory {
   @@index([createdAt])
   @@map("search_history")
 }
+
+model Otp {
+  id        String   @id @default(uuid())
+  email     String
+  code      String   @db.VarChar(6)
+  purpose   String   @default("registration") // registration, password_reset, etc.
+  expiresAt DateTime
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([email, purpose])
+  @@index([email, code])
+  @@index([expiresAt])
+  @@map("otps")
+}
