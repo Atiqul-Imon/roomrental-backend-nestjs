@@ -188,6 +188,168 @@ export class EmailService {
     }
   }
 
+  async sendPasswordResetEmail(email: string, resetLink: string): Promise<boolean> {
+    try {
+      if (!this.resend) {
+        this.logger.error('Resend client not initialized. Check RESEND_API_KEY configuration.');
+        return false;
+      }
+
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <meta http-equiv="X-UA-Compatible" content="IE=edge">
+          <title>Reset Your Password - RoomRentalUSA</title>
+        </head>
+        <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f7fa; line-height: 1.6;">
+          <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f5f7fa; padding: 20px;">
+            <tr>
+              <td align="center" style="padding: 20px 0;">
+                <table role="presentation" style="width: 100%; max-width: 600px; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); overflow: hidden;">
+                  <!-- Header with Gradient -->
+                  <tr>
+                    <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 30px; text-align: center;">
+                      <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">RoomRentalUSA</h1>
+                      <p style="margin: 8px 0 0 0; color: rgba(255, 255, 255, 0.9); font-size: 14px; font-weight: 400;">Find Your Perfect Home</p>
+                    </td>
+                  </tr>
+                  
+                  <!-- Main Content -->
+                  <tr>
+                    <td style="padding: 40px 30px;">
+                      <!-- Welcome Message -->
+                      <h2 style="margin: 0 0 16px 0; color: #1a202c; font-size: 24px; font-weight: 600; line-height: 1.3;">Reset Your Password</h2>
+                      <p style="margin: 0 0 32px 0; color: #4a5568; font-size: 16px; line-height: 1.6;">
+                        We received a request to reset your password. Click the button below to create a new password.
+                      </p>
+                      
+                      <!-- Reset Button -->
+                      <table role="presentation" style="width: 100%; margin: 32px 0;">
+                        <tr>
+                          <td align="center" style="padding: 0;">
+                            <a href="${resetLink}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; padding: 16px 32px; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 6px rgba(102, 126, 234, 0.3);">
+                              Reset Password
+                            </a>
+                          </td>
+                        </tr>
+                      </table>
+                      
+                      <!-- Alternative Link -->
+                      <p style="margin: 24px 0 0 0; color: #718096; font-size: 14px; line-height: 1.6; text-align: center;">
+                        Or copy and paste this link into your browser:<br>
+                        <a href="${resetLink}" style="color: #667eea; text-decoration: none; word-break: break-all;">${resetLink}</a>
+                      </p>
+                      
+                      <!-- Instructions -->
+                      <div style="background-color: #fef5e7; border-left: 4px solid #f6ad55; padding: 16px 20px; border-radius: 6px; margin: 24px 0;">
+                        <p style="margin: 0; color: #744210; font-size: 14px; line-height: 1.5;">
+                          <strong>⏱️ Important:</strong> This link will expire in <strong>1 hour</strong> for security reasons.
+                        </p>
+                      </div>
+                      
+                      <!-- Security Notice -->
+                      <p style="margin: 24px 0 0 0; color: #718096; font-size: 14px; line-height: 1.6; text-align: center;">
+                        If you didn't request a password reset, please ignore this email. Your password will remain unchanged.
+                      </p>
+                    </td>
+                  </tr>
+                  
+                  <!-- Footer -->
+                  <tr>
+                    <td style="background-color: #f7fafc; padding: 24px 30px; border-top: 1px solid #e2e8f0;">
+                      <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                          <td align="center" style="padding: 0;">
+                            <p style="margin: 0 0 12px 0; color: #718096; font-size: 12px; line-height: 1.5;">
+                              © ${new Date().getFullYear()} RoomRentalUSA. All rights reserved.
+                            </p>
+                            <p style="margin: 0; color: #a0aec0; font-size: 11px;">
+                              This is an automated email. Please do not reply to this message.
+                            </p>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+                
+                <!-- Bottom Spacing -->
+                <table role="presentation" style="width: 100%; max-width: 600px; margin-top: 20px;">
+                  <tr>
+                    <td align="center" style="padding: 0;">
+                      <p style="margin: 0; color: #a0aec0; font-size: 11px; line-height: 1.5;">
+                        Having trouble? Contact us at <a href="mailto:admin@roomrentalusa.com" style="color: #667eea; text-decoration: none;">admin@roomrentalusa.com</a>
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+        </html>
+      `;
+
+      const textContent = `
+        Reset Your Password - RoomRentalUSA
+        ===================================
+        
+        We received a request to reset your password. Click the link below to create a new password:
+        
+        ${resetLink}
+        
+        ⏱️ Important: This link will expire in 1 hour for security reasons.
+        
+        If you didn't request a password reset, please ignore this email. Your password will remain unchanged.
+        
+        ---
+        © ${new Date().getFullYear()} RoomRentalUSA. All rights reserved.
+        This is an automated email. Please do not reply to this message.
+        
+        Having trouble? Contact us at admin@roomrentalusa.com
+      `;
+
+      const { data, error } = await this.resend.emails.send({
+        from: `${this.fromName} <${this.fromEmail}>`,
+        to: email,
+        subject: 'Reset Your Password - RoomRentalUSA',
+        html: htmlContent,
+        text: textContent,
+        replyTo: this.fromEmail,
+        headers: {
+          'X-Entity-Ref-ID': `password-reset-${Date.now()}`,
+          'X-Mailer': 'RoomRentalUSA',
+          'List-Unsubscribe': `<mailto:${this.fromEmail}?subject=unsubscribe>`,
+          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+        },
+        tags: [
+          {
+            name: 'category',
+            value: 'password-reset',
+          },
+          {
+            name: 'type',
+            value: 'security',
+          },
+        ],
+      });
+
+      if (error) {
+        this.logger.error(`Failed to send password reset email to ${email}:`, error);
+        return false;
+      }
+
+      this.logger.log(`Password reset email sent to ${email}. MessageId: ${data?.id}`);
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to send password reset email to ${email}:`, error);
+      return false;
+    }
+  }
+
   async verifyConnection(): Promise<boolean> {
     try {
       if (!this.resend) {
