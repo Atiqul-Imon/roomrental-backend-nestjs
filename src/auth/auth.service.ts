@@ -464,10 +464,24 @@ export class AuthService {
             { email },
           ],
         },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          profileImage: true,
+          supabaseUserId: true,
+          oauthProvider: true,
+          emailVerified: true,
+          password: true,
+        },
       });
+
+      let isNewUser = false;
 
       if (!user) {
         // Create new user (database trigger should handle this, but create as fallback)
+        isNewUser = true;
         user = await this.prisma.user.create({
           data: {
             email,
@@ -481,6 +495,22 @@ export class AuthService {
           },
         });
       } else {
+        // Check if this is a new OAuth user (user exists but just got OAuth linked)
+        // If user doesn't have supabaseUserId set, this is their first OAuth login
+        const existingUser = await this.prisma.user.findUnique({
+          where: { id: user.id },
+          select: {
+            supabaseUserId: true,
+            oauthProvider: true,
+            profileImage: true,
+            name: true,
+          },
+        });
+        
+        if (!existingUser?.supabaseUserId || !existingUser?.oauthProvider) {
+          isNewUser = true;
+        }
+        
         // Update existing user with Supabase info
         user = await this.prisma.user.update({
           where: { id: user.id },
@@ -488,8 +518,8 @@ export class AuthService {
             supabaseUserId: supabaseUser.id,
             oauthProvider: provider,
             emailVerified,
-            profileImage: profileImage || user.profileImage,
-            name: name || user.name,
+            profileImage: profileImage || existingUser?.profileImage || null,
+            name: name || existingUser?.name || null,
           },
         });
       }
@@ -511,6 +541,7 @@ export class AuthService {
             accessToken: tokens.accessToken,
             refreshToken: tokens.refreshToken,
           },
+          isNewUser, // Flag to indicate if this is a new OAuth user
         },
       };
     } catch (error) {
