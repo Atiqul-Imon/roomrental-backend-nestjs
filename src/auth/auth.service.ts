@@ -18,6 +18,7 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { OtpService } from '../otp/otp.service';
 import { EmailService } from '../email/email.service';
+import { SupabaseService } from './supabase.service';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -28,6 +29,7 @@ export class AuthService {
     private configService: ConfigService,
     private otpService: OtpService,
     private emailService: EmailService,
+    private supabaseService: SupabaseService,
   ) {}
 
   async register(registerDto: RegisterDto) {
@@ -427,6 +429,95 @@ export class AuthService {
     // Check for at least one number
     if (!/[0-9]/.test(password)) {
       throw new BadRequestException('Password must contain at least one number');
+    }
+  }
+
+  async handleSupabaseAuth(accessToken: string) {
+    try {
+      // Verify Supabase token and get user
+      const supabaseAuthData = await this.supabaseService.verifyToken(accessToken);
+      const supabaseUser = supabaseAuthData.user;
+
+      if (!supabaseUser) {
+        throw new UnauthorizedException('Invalid Supabase authentication token');
+      }
+
+      // Extract user data from Supabase
+      const email = supabaseUser.email;
+      if (!email) {
+        throw new BadRequestException('Email not provided by OAuth provider');
+      }
+
+      const name = supabaseUser.user_metadata?.full_name || 
+                   supabaseUser.user_metadata?.name || 
+                   email.split('@')[0];
+      const profileImage = supabaseUser.user_metadata?.avatar_url || 
+                          supabaseUser.user_metadata?.picture;
+      const provider = supabaseUser.app_metadata?.provider || 'google';
+      const emailVerified = supabaseUser.email_confirmed_at !== null;
+
+      // Find or create user in your database
+      let user = await this.prisma.user.findFirst({
+        where: {
+          OR: [
+            { supabaseUserId: supabaseUser.id },
+            { email },
+          ],
+        },
+      });
+
+      if (!user) {
+        // Create new user (database trigger should handle this, but create as fallback)
+        user = await this.prisma.user.create({
+          data: {
+            email,
+            name,
+            profileImage,
+            supabaseUserId: supabaseUser.id,
+            oauthProvider: provider,
+            emailVerified,
+            role: 'student',
+            password: null, // OAuth users don't have passwords
+          },
+        });
+      } else {
+        // Update existing user with Supabase info
+        user = await this.prisma.user.update({
+          where: { id: user.id },
+          data: {
+            supabaseUserId: supabaseUser.id,
+            oauthProvider: provider,
+            emailVerified,
+            profileImage: profileImage || user.profileImage,
+            name: name || user.name,
+          },
+        });
+      }
+
+      // Generate your JWT tokens
+      const tokens = this.generateTokens(user.id, user.email, user.role);
+
+      return {
+        success: true,
+        data: {
+          user: {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            profileImage: user.profileImage,
+          },
+          tokens: {
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+          },
+        },
+      };
+    } catch (error) {
+      if (error instanceof UnauthorizedException || error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new UnauthorizedException('Failed to authenticate with Supabase');
     }
   }
 

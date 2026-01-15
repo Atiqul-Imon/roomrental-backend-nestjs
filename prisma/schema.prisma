@@ -57,7 +57,7 @@ enum GenderPreference {
 model User {
   id            String             @id @default(uuid())
   email         String             @unique
-  password      String
+  password      String?            // Nullable for OAuth users
   name          String?
   role          UserRole           @default(student)
   profileImage  String?
@@ -66,6 +66,11 @@ model User {
   preferences   Json? // Store user preferences as JSON
   verification  VerificationStatus @default(pending)
   emailVerified Boolean            @default(false)
+  
+  // Supabase Auth integration
+  supabaseUserId String?           @unique // Links to auth.users.id
+  oauthProvider  String?           // "google" | "email" | null
+  
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 
