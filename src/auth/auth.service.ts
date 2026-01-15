@@ -548,7 +548,11 @@ export class AuthService {
       if (error instanceof UnauthorizedException || error instanceof BadRequestException) {
         throw error;
       }
-      throw new UnauthorizedException('Failed to authenticate with Supabase');
+      // Log the full error for debugging
+      console.error('Supabase Auth Error:', error);
+      throw new UnauthorizedException(
+        `Failed to authenticate with Supabase: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
