@@ -556,6 +556,16 @@ export class AuthService {
       // Generate your JWT tokens
       const tokens = this.generateTokens(user.id, user.email, user.role);
 
+      // Log for debugging (remove in production or use proper logger)
+      console.log('[OAuth] User authenticated:', {
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        isNewUser,
+        wasAccountLinked,
+        hasPassword: !!user.password,
+      });
+
       return {
         success: true,
         data: {
@@ -565,6 +575,7 @@ export class AuthService {
             name: user.name,
             role: user.role,
             profileImage: user.profileImage,
+            emailVerified: user.emailVerified,
           },
           tokens: {
             accessToken: tokens.accessToken,
