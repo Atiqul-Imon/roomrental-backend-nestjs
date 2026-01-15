@@ -443,7 +443,7 @@ export class AuthService {
       }
 
       // Extract user data from Supabase
-      const email = supabaseUser.email;
+      const email = supabaseUser.email?.trim().toLowerCase();
       if (!email) {
         throw new BadRequestException('Email not provided by OAuth provider');
       }
@@ -457,11 +457,13 @@ export class AuthService {
       const emailVerified = supabaseUser.email_confirmed_at !== null;
 
       // Find or create user in your database
+      // First check by supabaseUserId (most specific)
+      // Then check by email (for account linking)
       let user = await this.prisma.user.findFirst({
         where: {
           OR: [
-            { supabaseUserId: supabaseUser.id },
-            { email },
+            { supabaseUserId: supabaseUser.id }, // Exact Supabase user match
+            { email }, // Email match for account linking
           ],
         },
         select: {
@@ -478,10 +480,12 @@ export class AuthService {
       });
 
       let isNewUser = false;
+      let wasAccountLinked = false;
 
       if (!user) {
         // Create new user (database trigger should handle this, but create as fallback)
         isNewUser = true;
+        wasAccountLinked = false; // New user, not linking
         user = await this.prisma.user.create({
           data: {
             email,
@@ -495,8 +499,8 @@ export class AuthService {
           },
         });
       } else {
-        // Check if this is a new OAuth user (user exists but just got OAuth linked)
-        // If user doesn't have supabaseUserId set, this is their first OAuth login
+        // Existing user found - linking OAuth account
+        // Check if this is their first OAuth login (account linking)
         const existingUser = await this.prisma.user.findUnique({
           where: { id: user.id },
           select: {
@@ -504,22 +508,47 @@ export class AuthService {
             oauthProvider: true,
             profileImage: true,
             name: true,
+            role: true,
+            password: true,
+            emailVerified: true,
           },
         });
         
-        if (!existingUser?.supabaseUserId || !existingUser?.oauthProvider) {
-          isNewUser = true;
+        // Determine if this is first OAuth linking
+        const isLinkingOAuth = !existingUser?.supabaseUserId || !existingUser?.oauthProvider;
+        
+        // Check if user already has an active account with password (email/password registration)
+        // If user has a password, they've completed email/password registration - skip role selection
+        const hasActivePasswordAccount = !!existingUser?.password;
+        
+        // isNewUser = true only if:
+        // - This is their first OAuth login (linking OAuth to account), AND
+        // - They don't have a password (account was auto-created by trigger, never completed setup)
+        // Existing users with passwords linking OAuth should NOT go through role selection
+        isNewUser = isLinkingOAuth && !hasActivePasswordAccount;
+        
+        // Determine if this was account linking (existing user with password linking OAuth)
+        wasAccountLinked = isLinkingOAuth && !!existingUser?.password;
+        
+        // Security check: If user found by email but has different supabaseUserId, prevent linking
+        // This prevents account takeover if someone tries to link an OAuth account to an existing email
+        if (user.supabaseUserId && user.supabaseUserId !== supabaseUser.id) {
+          throw new UnauthorizedException(
+            'This email is already associated with a different account. Please use the original login method.'
+          );
         }
         
-        // Update existing user with Supabase info
+        // Update existing user with Supabase info (account linking)
+        // Note: We preserve their existing password so they can still login with email/password
         user = await this.prisma.user.update({
           where: { id: user.id },
           data: {
             supabaseUserId: supabaseUser.id,
             oauthProvider: provider,
-            emailVerified,
+            emailVerified: emailVerified || existingUser?.emailVerified || false,
             profileImage: profileImage || existingUser?.profileImage || null,
             name: name || existingUser?.name || null,
+            // DO NOT update password - preserve existing password for email/password login
           },
         });
       }
@@ -541,7 +570,8 @@ export class AuthService {
             accessToken: tokens.accessToken,
             refreshToken: tokens.refreshToken,
           },
-          isNewUser, // Flag to indicate if this is a new OAuth user
+          isNewUser, // Flag to indicate if this is a new OAuth user (needs role selection)
+          accountLinked: wasAccountLinked, // Flag to indicate if existing account was linked
         },
       };
     } catch (error) {

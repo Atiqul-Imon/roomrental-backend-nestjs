@@ -1,4 +1,5 @@
 import { Controller, Post, Body, HttpCode, HttpStatus, UseGuards, Request, BadRequestException } from '@nestjs/common';
+import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -136,11 +137,14 @@ export class AuthController {
   }
 
   @Post('supabase/verify')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: 3600000 } }) // 10 requests per hour (3600 seconds = 1 hour)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Verify Supabase Auth token and sync user' })
   @ApiResponse({ status: 200, description: 'User authenticated successfully' })
   @ApiResponse({ status: 401, description: 'Invalid token' })
   @ApiResponse({ status: 400, description: 'Invalid request' })
+  @ApiResponse({ status: 429, description: 'Too many requests. Please try again later.' })
   async verifySupabaseAuth(@Body() body: { accessToken: string }) {
     if (!body.accessToken) {
       throw new BadRequestException('Access token is required');
