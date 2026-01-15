@@ -82,6 +82,7 @@ export class ListingsService {
       this.cache.del('search:states'),
       this.cache.del('search:amenities'),
       this.cache.del('search:price-range'),
+      this.cache.invalidatePattern(`my-listings:${landlordId}:*`), // User's listings
       this.cache.invalidatePattern('listings:*'), // Invalidate all listings cache for immediate visibility
     ]);
 
@@ -614,11 +615,19 @@ export class ListingsService {
     });
 
     // Cache invalidation - invalidate specific keys and all listings cache
-    await Promise.all([
+    // Always invalidate the landlord's cache, and also the requester's if different (e.g., admin)
+    const cacheInvalidations = [
       this.cache.del(`listing:${id}`), // Specific listing
-      this.cache.invalidatePattern(`my-listings:${userId}:*`), // User's listings
+      this.cache.invalidatePattern(`my-listings:${listing.landlordId}:*`), // Landlord's listings (always invalidate the actual landlord's cache)
       this.cache.invalidatePattern('listings:*'), // Invalidate all listings cache for immediate visibility
-    ]);
+    ];
+    
+    // Also invalidate requester's cache if different (e.g., admin viewing their own dashboard)
+    if (listing.landlordId !== userId) {
+      cacheInvalidations.push(this.cache.invalidatePattern(`my-listings:${userId}:*`));
+    }
+    
+    await Promise.all(cacheInvalidations);
 
     return {
       success: true,
