@@ -32,16 +32,26 @@ export class SupabaseService {
    */
   async verifyToken(accessToken: string) {
     if (!this.supabase) {
-      throw new Error('Supabase client not initialized');
+      throw new Error('Supabase client not initialized. Check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.');
     }
 
-    const { data, error } = await this.supabase.auth.getUser(accessToken);
-    
-    if (error) {
-      throw error;
+    try {
+      const { data, error } = await this.supabase.auth.getUser(accessToken);
+      
+      if (error) {
+        console.error('Supabase getUser error:', error);
+        throw new Error(`Supabase authentication error: ${error.message || 'Unknown error'}`);
+      }
+      
+      if (!data || !data.user) {
+        throw new Error('No user data returned from Supabase');
+      }
+      
+      return data;
+    } catch (err) {
+      console.error('Error verifying Supabase token:', err);
+      throw err;
     }
-    
-    return data;
   }
 
   /**
