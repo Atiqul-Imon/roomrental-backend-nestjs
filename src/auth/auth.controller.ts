@@ -1,4 +1,4 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, HttpStatus, UseGuards, Request, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -133,6 +133,19 @@ export class AuthController {
   @ApiResponse({ status: 400, description: 'Validation error' })
   async changePassword(@Request() req: any, @Body() changePasswordDto: ChangePasswordDto) {
     return this.authService.changePassword(req.user.sub, changePasswordDto);
+  }
+
+  @Post('supabase/verify')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Verify Supabase Auth token and sync user' })
+  @ApiResponse({ status: 200, description: 'User authenticated successfully' })
+  @ApiResponse({ status: 401, description: 'Invalid token' })
+  @ApiResponse({ status: 400, description: 'Invalid request' })
+  async verifySupabaseAuth(@Body() body: { accessToken: string }) {
+    if (!body.accessToken) {
+      throw new BadRequestException('Access token is required');
+    }
+    return this.authService.handleSupabaseAuth(body.accessToken);
   }
 }
 
