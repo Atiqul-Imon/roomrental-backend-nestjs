@@ -27,7 +27,8 @@
     "seed": "ts-node prisma/seed.ts",
     "create-admin": "ts-node src/scripts/create-super-admin.ts",
     "check-users": "ts-node src/scripts/check-users.ts",
-    "test-admin-users": "ts-node src/scripts/test-admin-users-endpoint.ts"
+    "test-admin-users": "ts-node src/scripts/test-admin-users-endpoint.ts",
+    "delete-users": "ts-node src/scripts/delete-users.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
