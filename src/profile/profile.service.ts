@@ -56,6 +56,23 @@ export class ProfileService {
       throw new NotFoundException('User not found');
     }
 
+    // Security: Prevent users from elevating their role to admin/staff
+    // Only allow role changes between 'student' and 'landlord' (regular roles)
+    if (updateData.role) {
+      const allowedRoles = ['student', 'landlord'];
+      const currentRole = user.role;
+      
+      // If trying to set admin/staff role, reject (only admins can do this via admin panel)
+      if (!allowedRoles.includes(updateData.role)) {
+        throw new ForbiddenException('Cannot change role to ' + updateData.role + '. Only student and landlord roles are allowed.');
+      }
+      
+      // If current role is admin/staff, prevent downgrade via profile update
+      if (!allowedRoles.includes(currentRole)) {
+        throw new ForbiddenException('Cannot change role from ' + currentRole + '. Please contact administrator.');
+      }
+    }
+
     const updated = await this.prisma.user.update({
       where: { id: userId },
       data: updateData,
