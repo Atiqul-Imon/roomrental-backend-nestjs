@@ -516,73 +516,80 @@ export class ListingsService {
   }
 
   async findMyListings(landlordId: string, query: any) {
-    const { status, page = 1, limit = 12, search } = query;
-    const cacheKey = `my-listings:${landlordId}:${status}:${page}:${limit}:${search || ''}`;
+    try {
+      const { status, page = 1, limit = 12, search } = query;
+      const pageNum = parseInt(String(page), 10) || 1;
+      const limitNum = parseInt(String(limit), 10) || 12;
+      const cacheKey = `my-listings:${landlordId}:${status}:${pageNum}:${limitNum}:${search || ''}`;
 
-    // Try to get from cache (5 minutes TTL)
-    return this.cache.getOrSet(
-      cacheKey,
-      async () => {
-        const skip = (page - 1) * limit;
+      // Try to get from cache (5 minutes TTL)
+      return this.cache.getOrSet(
+        cacheKey,
+        async () => {
+          const skip = (pageNum - 1) * limitNum;
 
-        // Build where clause - use AND when combining landlordId with OR search
-        const whereConditions: any[] = [{ landlordId }];
-        
-        if (status && status !== 'all') {
-          whereConditions.push({ status });
-        }
+          // Build where clause - use AND when combining landlordId with OR search
+          const whereConditions: any[] = [{ landlordId }];
+          
+          if (status && status !== 'all') {
+            whereConditions.push({ status });
+          }
 
-        // Full-text search - must be combined with AND
-        if (search) {
-          whereConditions.push({
-            OR: [
-              { title: { contains: search, mode: 'insensitive' } },
-              { description: { contains: search, mode: 'insensitive' } },
-              { city: { contains: search, mode: 'insensitive' } },
-              { state: { contains: search, mode: 'insensitive' } },
-              { address: { contains: search, mode: 'insensitive' } },
-            ],
-          });
-        }
+          // Full-text search - must be combined with AND
+          if (search) {
+            whereConditions.push({
+              OR: [
+                { title: { contains: search, mode: 'insensitive' } },
+                { description: { contains: search, mode: 'insensitive' } },
+                { city: { contains: search, mode: 'insensitive' } },
+                { state: { contains: search, mode: 'insensitive' } },
+                { address: { contains: search, mode: 'insensitive' } },
+              ],
+            });
+          }
 
-        // Use AND if we have multiple conditions, otherwise use the single condition
-        const where = whereConditions.length > 1 
-          ? { AND: whereConditions }
-          : whereConditions[0];
+          // Use AND if we have multiple conditions, otherwise use the single condition
+          const where = whereConditions.length > 1 
+            ? { AND: whereConditions }
+            : whereConditions[0];
 
-        const [listings, total] = await Promise.all([
-          this.prisma.listing.findMany({
-            where,
-            skip,
-            take: limit,
-            include: {
-              landlord: {
-                select: {
-                  id: true,
-                  name: true,
-                  email: true,
-                  profileImage: true,
+          const [listings, total] = await Promise.all([
+            this.prisma.listing.findMany({
+              where,
+              skip,
+              take: limitNum,
+              include: {
+                landlord: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    profileImage: true,
+                  },
                 },
               },
-            },
-            orderBy: { createdAt: 'desc' },
-          }),
-          this.prisma.listing.count({ where }),
-        ]);
+              orderBy: { createdAt: 'desc' },
+            }),
+            this.prisma.listing.count({ where }),
+          ]);
 
-        return {
-          success: true,
-          data: {
-            listings,
-            total,
-            page,
-            limit,
-            totalPages: Math.ceil(total / limit),
-          },
-        };
-      },
-      300, // 5 minutes cache
-    );
+          return {
+            success: true,
+            data: {
+              listings,
+              total,
+              page: pageNum,
+              limit: limitNum,
+              totalPages: Math.ceil(total / limitNum),
+            },
+          };
+        },
+        300, // 5 minutes cache
+      );
+    } catch (error) {
+      console.error('Error in findMyListings:', error);
+      throw error;
+    }
   }
 
   // Helper method to calculate distance between two coordinates (Haversine formula)
