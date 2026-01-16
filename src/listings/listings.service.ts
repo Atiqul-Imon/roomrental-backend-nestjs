@@ -36,11 +36,9 @@ export class ListingsService {
       landlordId = createDto.landlordId; // Use the provided landlordId
     }
 
-    // Determine listing status based on user role
-    // Landlords create listings with 'pending' status (requires admin approval)
-    // Admins/staff create listings with 'available' status (auto-approved)
-    const isAdmin = userRole && ['admin', 'super_admin', 'staff'].includes(userRole);
-    const listingStatus = createDto.status || (isAdmin ? 'available' : 'pending');
+    // Determine listing status - all listings are published immediately
+    // Use the provided status or default to 'available' for immediate publication
+    const listingStatus = createDto.status || 'available';
 
     const listing = await this.prisma.listing.create({
       data: {
