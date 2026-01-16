@@ -516,8 +516,8 @@ export class ListingsService {
   }
 
   async findMyListings(landlordId: string, query: any) {
-    const { status, page = 1, limit = 12 } = query;
-    const cacheKey = `my-listings:${landlordId}:${status}:${page}:${limit}`;
+    const { status, page = 1, limit = 12, search } = query;
+    const cacheKey = `my-listings:${landlordId}:${status}:${page}:${limit}:${search || ''}`;
 
     // Try to get from cache (5 minutes TTL)
     return this.cache.getOrSet(
@@ -528,6 +528,17 @@ export class ListingsService {
         const where: any = { landlordId };
         if (status && status !== 'all') {
           where.status = status;
+        }
+
+        // Full-text search
+        if (search) {
+          where.OR = [
+            { title: { contains: search, mode: 'insensitive' } },
+            { description: { contains: search, mode: 'insensitive' } },
+            { city: { contains: search, mode: 'insensitive' } },
+            { state: { contains: search, mode: 'insensitive' } },
+            { address: { contains: search, mode: 'insensitive' } },
+          ];
         }
 
         const [listings, total] = await Promise.all([
