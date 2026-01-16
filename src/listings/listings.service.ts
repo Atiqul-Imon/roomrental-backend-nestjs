@@ -525,21 +525,30 @@ export class ListingsService {
       async () => {
         const skip = (page - 1) * limit;
 
-        const where: any = { landlordId };
+        // Build where clause - use AND when combining landlordId with OR search
+        const whereConditions: any[] = [{ landlordId }];
+        
         if (status && status !== 'all') {
-          where.status = status;
+          whereConditions.push({ status });
         }
 
-        // Full-text search
+        // Full-text search - must be combined with AND
         if (search) {
-          where.OR = [
-            { title: { contains: search, mode: 'insensitive' } },
-            { description: { contains: search, mode: 'insensitive' } },
-            { city: { contains: search, mode: 'insensitive' } },
-            { state: { contains: search, mode: 'insensitive' } },
-            { address: { contains: search, mode: 'insensitive' } },
-          ];
+          whereConditions.push({
+            OR: [
+              { title: { contains: search, mode: 'insensitive' } },
+              { description: { contains: search, mode: 'insensitive' } },
+              { city: { contains: search, mode: 'insensitive' } },
+              { state: { contains: search, mode: 'insensitive' } },
+              { address: { contains: search, mode: 'insensitive' } },
+            ],
+          });
         }
+
+        // Use AND if we have multiple conditions, otherwise use the single condition
+        const where = whereConditions.length > 1 
+          ? { AND: whereConditions }
+          : whereConditions[0];
 
         const [listings, total] = await Promise.all([
           this.prisma.listing.findMany({
