@@ -167,5 +167,10 @@ export class SearchListingsDto {
   @IsString({ each: true })
   @IsOptional()
   nearbyUniversities?: string[];
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  landlordId?: string;
 }
 
