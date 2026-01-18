@@ -106,6 +106,7 @@ export class ListingsService {
       latitude,
       longitude,
       radius,
+      landlordId,
       // Advanced filters
       minBedrooms,
       maxBedrooms,
@@ -138,6 +139,7 @@ export class ListingsService {
       latitude,
       longitude,
       radius,
+      landlordId,
       minBedrooms,
       maxBedrooms,
       minBathrooms,
@@ -159,6 +161,11 @@ export class ListingsService {
       async () => {
         const skip = (page - 1) * limit;
         const where: any = { status };
+
+        // Landlord filter
+        if (landlordId) {
+          where.landlordId = landlordId;
+        }
 
         // Location filters
         if (city) {
