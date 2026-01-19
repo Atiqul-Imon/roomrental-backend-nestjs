@@ -8,6 +8,8 @@ import {
   ValidateNested,
   Min,
   Max,
+  MaxLength,
+  MinLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
@@ -66,12 +68,16 @@ class LocationDto {
 }
 
 export class CreateListingDto {
-  @ApiProperty()
+  @ApiProperty({ maxLength: 200, minLength: 5 })
   @IsString()
+  @MinLength(5, { message: 'Title must be at least 5 characters long' })
+  @MaxLength(200, { message: 'Title must not exceed 200 characters' })
   title: string;
 
-  @ApiProperty()
+  @ApiProperty({ maxLength: 2000, minLength: 20 })
   @IsString()
+  @MinLength(20, { message: 'Description must be at least 20 characters long' })
+  @MaxLength(2000, { message: 'Description must not exceed 2000 characters' })
   description: string;
 
   @ApiProperty()
