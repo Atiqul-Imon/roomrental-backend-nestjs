@@ -82,6 +82,12 @@ export class UploadService {
     try {
       this.logger.log(`Uploading to ImageKit: ${file.originalname}`);
       
+      // Optimize image during upload for cost-effectiveness and performance
+      // - 16:9 aspect ratio (standard for listings)
+      // - Max width 1920px (4K ready, but not excessive)
+      // - Auto quality and format (WebP/AVIF when supported)
+      // - Maintain aspect ratio to avoid distortion
+      // - Limit dimensions to reduce storage costs
       const result = (await this.imagekit.upload({
         file: file.buffer,
         fileName: file.originalname,
@@ -89,7 +95,7 @@ export class UploadService {
         useUniqueFileName: true,
         overwriteFile: false,
         transformation: {
-          pre: 'w-1200,h-800,c-limit,q-auto,f-auto', // width: 1200, height: 800, crop: limit, quality: auto, format: auto
+          pre: 'w-1920,h-1080,c-limit,q-85,f-auto', // 16:9 ratio, limit crop, quality 85, auto format
         },
       })) as ImageKitUploadResult;
 
