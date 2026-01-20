@@ -30,6 +30,12 @@ export class ProfileController {
   getUserProfile(@Param('id') id: string, @CurrentUser() user: any) {
     return this.profileService.getUserProfile(id, user?.id || '');
   }
+
+  @Get(':id/full')
+  @ApiOperation({ summary: 'Get full profile data including ratings and stats (batch endpoint)' })
+  getFullProfileData(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.profileService.getFullProfileData(id, user?.id || '');
+  }
 }
 
 

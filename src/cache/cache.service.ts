@@ -134,6 +134,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Delete multiple keys matching a pattern
+   * Uses SCAN instead of KEYS to avoid blocking Redis server
    */
   async delPattern(pattern: string): Promise<number> {
     if (!this.isReady()) {
@@ -141,12 +142,42 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     }
 
     try {
-      const keys = await this.client.keys(pattern);
-      if (keys.length === 0) {
-        return 0;
-      }
-      await this.client.del(...keys);
-      return keys.length;
+      const stream = this.client.scanStream({
+        match: pattern,
+        count: 100, // Process 100 keys at a time
+      });
+
+      let deletedCount = 0;
+      const keysToDelete: string[] = [];
+      const pipeline = this.client.pipeline();
+
+      return new Promise<number>((resolve, reject) => {
+        stream.on('data', (keys: string[]) => {
+          keys.forEach((key) => {
+            pipeline.del(key);
+            keysToDelete.push(key);
+          });
+          deletedCount += keys.length;
+        });
+
+        stream.on('end', async () => {
+          try {
+            if (keysToDelete.length > 0) {
+              await pipeline.exec();
+            }
+            this.logger.debug(`Deleted ${deletedCount} keys matching pattern: ${pattern}`);
+            resolve(deletedCount);
+          } catch (error) {
+            this.logger.error(`Error executing pipeline delete: ${error.message}`);
+            reject(error);
+          }
+        });
+
+        stream.on('error', (error) => {
+          this.logger.error(`Error scanning keys: ${error.message}`);
+          reject(error);
+        });
+      });
     } catch (error) {
       this.logger.error(`Error deleting cache pattern ${pattern}: ${error.message}`);
       return 0;

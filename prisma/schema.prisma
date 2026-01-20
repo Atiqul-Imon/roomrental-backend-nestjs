@@ -144,6 +144,13 @@ model Listing {
   @@index([petFriendly])
   @@index([latitude, longitude]) // For geospatial search
   @@index([viewCount]) // For popularity sorting
+  // Phase 2: Additional composite indexes for common query patterns
+  @@index([status, city, state, price]) // Multi-column search with price
+  @@index([status, propertyType, petFriendly]) // Filter combinations
+  @@index([landlordId, status, createdAt]) // Landlord dashboard queries
+  @@index([availabilityDate, status]) // Availability searches
+  @@index([status, bedrooms, bathrooms]) // Bedroom/bathroom filtering
+  @@index([status, price, createdAt]) // Price and date sorting
   @@map("listings")
 }
 

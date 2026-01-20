@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { CacheService } from '../cache/cache.service';
 
@@ -168,6 +168,93 @@ export class ProfileService {
             user,
             listings,
             reviews,
+          },
+        };
+      },
+      600, // 10 minutes cache
+    );
+  }
+
+  /**
+   * Get full profile data including ratings and stats in one call
+   * This reduces API calls from 3 to 1 for profile pages
+   */
+  async getFullProfileData(userId: string, currentUserId: string) {
+    const cacheKey = `full-profile:${userId}`;
+
+    return this.cache.getOrSet(
+      cacheKey,
+      async () => {
+        // Fetch all data in parallel
+        const [user, reviews, listings] = await Promise.all([
+          // Get user profile
+          this.prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              role: true,
+              profileImage: true,
+              bio: true,
+              phone: true,
+              preferences: true,
+              verification: true,
+              emailVerified: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+          }),
+          // Get reviews for rating calculation
+          this.prisma.review.findMany({
+            where: { revieweeId: userId },
+            select: { rating: true },
+          }),
+          // Get listings for stats (if landlord)
+          this.prisma.listing.findMany({
+            where: { landlordId: userId },
+            select: {
+              id: true,
+              status: true,
+              price: true,
+              viewCount: true,
+            },
+          }),
+        ]);
+
+        if (!user) {
+          throw new NotFoundException('User not found');
+        }
+
+        // Calculate rating stats
+        const totalReviews = reviews.length;
+        const averageRating =
+          totalReviews > 0
+            ? Math.round((reviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews) * 10) / 10
+            : 0;
+
+        // Calculate user stats based on role
+        let stats: any = {};
+        if (user.role === 'landlord') {
+          stats = {
+            listings: listings.length,
+            activeListings: listings.filter((l) => l.status === 'available').length,
+            totalViews: listings.reduce((sum, l) => sum + (l.viewCount || 0), 0),
+            revenue: listings
+              .filter((l) => l.status === 'rented')
+              .reduce((sum, l) => sum + (l.price || 0), 0),
+          };
+        }
+
+        return {
+          success: true,
+          data: {
+            user,
+            rating: {
+              averageRating,
+              totalReviews,
+            },
+            stats,
           },
         };
       },
