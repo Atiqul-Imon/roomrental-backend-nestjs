@@ -16,3 +16,5 @@ CREATE INDEX IF NOT EXISTS "listings_status_bedrooms_bathrooms_idx" ON "listings
 -- CreateIndex
 CREATE INDEX IF NOT EXISTS "listings_status_price_createdAt_idx" ON "listings"("status", "price", "createdAt");
 
+
+

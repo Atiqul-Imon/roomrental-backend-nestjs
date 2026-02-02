@@ -14,3 +14,5 @@ WHERE tablename = 'listings'
   )
 ORDER BY indexname;
 
+
+

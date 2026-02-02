@@ -310,6 +310,208 @@ If you did not create an account, please ignore this email.
     }
   }
 
+  async sendMessageNotification(data: {
+    to: string;
+    recipientName: string;
+    senderName: string;
+    messagePreview: string;
+    conversationId: string;
+    listingTitle?: string;
+    unsubscribeLink?: string;
+  }): Promise<boolean> {
+    try {
+      if (!this.resend) {
+        this.logger.error('Resend client not initialized. Check RESEND_API_KEY configuration.');
+        return false;
+      }
+
+      const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'https://www.roomrentalusa.com';
+      const conversationLink = `${frontendUrl}/messages/${data.conversationId}`;
+      const unsubscribeLink = data.unsubscribeLink || `${frontendUrl}/settings`;
+
+      // Spam-free template: Professional, clear, no trigger words
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <meta http-equiv="X-UA-Compatible" content="IE=edge">
+          <title>New Message - RoomRentalUSA</title>
+        </head>
+        <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f7fa; line-height: 1.6;">
+          <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f5f7fa; padding: 20px;">
+            <tr>
+              <td align="center" style="padding: 20px 0;">
+                <table role="presentation" style="width: 100%; max-width: 600px; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); overflow: hidden;">
+                  <!-- Header -->
+                  <tr>
+                    <td style="background-color: #ffffff; padding: 30px 30px 20px 30px; text-align: center; border-bottom: 1px solid #e2e8f0;">
+                      <h1 style="margin: 0; color: #1a202c; font-size: 24px; font-weight: 600; letter-spacing: -0.5px;">RoomRentalUSA</h1>
+                      <p style="margin: 8px 0 0 0; color: #718096; font-size: 14px; font-weight: 400;">Room Rental Platform</p>
+                    </td>
+                  </tr>
+                  
+                  <!-- Main Content -->
+                  <tr>
+                    <td style="padding: 40px 30px;">
+                      <!-- Greeting -->
+                      <p style="margin: 0 0 20px 0; color: #4a5568; font-size: 16px; line-height: 1.6;">
+                        Hello ${data.recipientName},
+                      </p>
+                      
+                      <!-- Message Notification -->
+                      <p style="margin: 0 0 24px 0; color: #4a5568; font-size: 16px; line-height: 1.6;">
+                        You have a new message from <strong style="color: #1a202c;">${data.senderName}</strong>${data.listingTitle ? ` about "${data.listingTitle}"` : ''}.
+                      </p>
+                      
+                      <!-- Message Preview Box -->
+                      <div style="background-color: #f7fafc; border-left: 4px solid #667eea; padding: 16px 20px; border-radius: 4px; margin: 24px 0;">
+                        <p style="margin: 0; color: #2d3748; font-size: 15px; line-height: 1.6; font-style: italic;">
+                          "${data.messagePreview}"
+                        </p>
+                      </div>
+                      
+                      <!-- Call to Action Button -->
+                      <table role="presentation" style="width: 100%; margin: 32px 0;">
+                        <tr>
+                          <td align="center" style="padding: 0;">
+                            <a href="${conversationLink}" style="display: inline-block; background-color: #667eea; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 6px; font-weight: 600; font-size: 16px;">
+                              View Conversation
+                            </a>
+                          </td>
+                        </tr>
+                      </table>
+                      
+                      <!-- Alternative Link -->
+                      <p style="margin: 24px 0 0 0; color: #718096; font-size: 14px; line-height: 1.6; text-align: center;">
+                        Or visit: <a href="${conversationLink}" style="color: #667eea; text-decoration: none; word-break: break-all;">${conversationLink}</a>
+                      </p>
+                      
+                      <!-- Help Text -->
+                      <p style="margin: 32px 0 0 0; color: #a0aec0; font-size: 13px; line-height: 1.5; text-align: center;">
+                        Reply to this conversation to continue the discussion with ${data.senderName}.
+                      </p>
+                    </td>
+                  </tr>
+                  
+                  <!-- Footer -->
+                  <tr>
+                    <td style="background-color: #f7fafc; padding: 24px 30px; border-top: 1px solid #e2e8f0;">
+                      <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                          <td align="center" style="padding: 0 0 16px 0;">
+                            <p style="margin: 0; color: #718096; font-size: 12px; line-height: 1.5;">
+                              © ${new Date().getFullYear()} RoomRentalUSA. All rights reserved.
+                            </p>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td align="center" style="padding: 0 0 16px 0;">
+                            <p style="margin: 0; color: #a0aec0; font-size: 11px; line-height: 1.5;">
+                              This is an automated notification. Please do not reply to this email.
+                            </p>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td align="center" style="padding: 0;">
+                            <p style="margin: 0; color: #a0aec0; font-size: 11px; line-height: 1.5;">
+                              <a href="${unsubscribeLink}" style="color: #667eea; text-decoration: none;">Manage notification preferences</a> | 
+                              <a href="${frontendUrl}/help" style="color: #667eea; text-decoration: none;">Help Center</a>
+                            </p>
+                          </td>
+                        </tr>
+                        <!-- CAN-SPAM Compliance: Physical Address -->
+                        <tr>
+                          <td align="center" style="padding: 16px 0 0 0;">
+                            <p style="margin: 0; color: #cbd5e0; font-size: 10px; line-height: 1.4;">
+                              RoomRentalUSA<br>
+                              United States<br>
+                              <a href="mailto:admin@roomrentalusa.com" style="color: #a0aec0; text-decoration: none;">admin@roomrentalusa.com</a>
+                            </p>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+        </html>
+      `;
+
+      const textContent = `New Message - RoomRentalUSA
+
+Hello ${data.recipientName},
+
+You have a new message from ${data.senderName}${data.listingTitle ? ` about "${data.listingTitle}"` : ''}.
+
+Message:
+"${data.messagePreview}"
+
+View conversation: ${conversationLink}
+
+Reply to this conversation to continue the discussion with ${data.senderName}.
+
+---
+© ${new Date().getFullYear()} RoomRentalUSA. All rights reserved.
+This is an automated notification. Please do not reply to this email.
+
+Manage notification preferences: ${unsubscribeLink}
+Help Center: ${frontendUrl}/help
+
+RoomRentalUSA
+United States
+admin@roomrentalusa.com
+      `;
+
+      // Extract domain from fromEmail for Message-ID
+      const emailDomain = this.fromEmail.split('@')[1] || 'roomrentalusa.com';
+      
+      const { data: result, error } = await this.resend.emails.send({
+        from: `${this.fromName} <${this.fromEmail}>`,
+        to: data.to,
+        subject: `New message from ${data.senderName}${data.listingTitle ? ` - ${data.listingTitle}` : ''}`,
+        html: htmlContent,
+        text: textContent,
+        replyTo: this.fromEmail,
+        headers: {
+          'X-Entity-Ref-ID': `message-${data.conversationId}-${Date.now()}`,
+          'Message-ID': `<message-${Date.now()}-${Math.random().toString(36).substring(7)}@${emailDomain}>`,
+          'List-Unsubscribe': `<${unsubscribeLink}>`,
+          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+        },
+        tags: [
+          {
+            name: 'category',
+            value: 'notification',
+          },
+          {
+            name: 'type',
+            value: 'message',
+          },
+          {
+            name: 'conversation_id',
+            value: data.conversationId,
+          },
+        ],
+      });
+
+      if (error) {
+        this.logger.error(`Failed to send message notification to ${data.to}:`, error);
+        return false;
+      }
+
+      this.logger.log(`Message notification sent to ${data.to}. MessageId: ${result?.id}`);
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to send message notification to ${data.to}:`, error);
+      return false;
+    }
+  }
+
   async verifyConnection(): Promise<boolean> {
     try {
       if (!this.resend) {

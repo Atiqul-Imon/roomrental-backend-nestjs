@@ -51,3 +51,5 @@ WHERE tablename = 'listings'
 AND indexname LIKE '%composite%' OR indexname LIKE '%status%';
 ```
 
+
+
