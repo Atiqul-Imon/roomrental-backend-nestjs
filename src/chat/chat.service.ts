@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException, BadRequestException, ForbiddenEx
 import { PrismaService } from '../database/prisma.service';
 import { CacheService } from '../cache/cache.service';
 import { SocketGateway } from '../socket/socket.gateway';
+import { EmailService } from '../email/email.service';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { UpdateMessageDto } from './dto/update-message.dto';
 import { SearchMessagesDto } from './dto/search-messages.dto';
@@ -16,6 +17,7 @@ export class ChatService {
     private prisma: PrismaService,
     private cache: CacheService,
     private socketGateway: SocketGateway,
+    private emailService: EmailService,
   ) {
     // Clean up rate limit map every minute
     setInterval(() => {
@@ -139,20 +141,20 @@ export class ChatService {
       throw new BadRequestException('Message content or attachments are required');
     }
 
-    // Verify conversation exists and user is participant
-    const conversation = await this.prisma.conversation.findFirst({
-      where: {
-        id: conversationId,
-        OR: [
-          { participant1Id: senderId },
-          { participant2Id: senderId },
-        ],
-      },
-      include: {
-        participant1: { select: { id: true } },
-        participant2: { select: { id: true } },
-      },
-    });
+      // Verify conversation exists and user is participant
+      const conversation = await this.prisma.conversation.findFirst({
+        where: {
+          id: conversationId,
+          OR: [
+            { participant1Id: senderId },
+            { participant2Id: senderId },
+          ],
+        },
+        include: {
+          participant1: { select: { id: true } },
+          participant2: { select: { id: true } },
+        },
+      });
 
     if (!conversation) {
       throw new NotFoundException('Conversation not found or access denied');
@@ -188,18 +190,25 @@ export class ChatService {
         data: { lastMessageAt: new Date() },
       });
 
-      // Emit via Socket.io
+      // Emit via Socket.io - CRITICAL: Ensure both sender and recipient get instant delivery
       const recipientId =
         message.conversation.participant1Id === senderId
           ? message.conversation.participant2Id
           : message.conversation.participant1Id;
 
-      // Emit to conversation room (both online and offline users will receive when they connect)
+      // Emit to conversation room (all participants in the conversation)
+      // This ensures both sender and recipient receive the message instantly
       this.socketGateway.server
         .to(`conversation:${conversationId}`)
         .emit('new-message', message);
 
-      // Emit to user's personal room for notifications
+      // Also emit to sender's personal room for immediate confirmation
+      // This ensures the sender sees their own message instantly even if not in conversation room
+      this.socketGateway.server
+        .to(`user:${senderId}`)
+        .emit('new-message', message);
+
+      // Emit to recipient's personal room for notifications (if not in conversation room)
       this.socketGateway.server
         .to(`user:${recipientId}`)
         .emit('new-message-notification', {
@@ -207,19 +216,33 @@ export class ChatService {
           message,
         });
 
-      // Invalidate unread count cache for the recipient (async, don't wait)
-      this.cache.del(`chat-unread-count:${recipientId}`).catch(() => {
-        // Ignore cache errors
-      });
+      // No cache to invalidate - unread count is always fresh
 
       // Check if recipient is online for immediate delivery status
-      if (this.socketGateway.isUserOnline(recipientId)) {
+      const isRecipientOnline = this.socketGateway.isUserOnline(recipientId);
+      if (isRecipientOnline) {
         // Mark as delivered immediately if user is online
         await this.prisma.message.update({
           where: { id: message.id },
           data: { deliveredAt: new Date() },
         });
       }
+
+      // Send email notification:
+      // - ALWAYS send to landlords (regardless of online status) - makes it super easy for students to connect
+      // - Send to other users only if offline
+      // This is async and non-blocking - don't wait for it
+      this.sendEmailNotificationIfEnabled(
+        recipientId,
+        senderId,
+        message.content,
+        conversationId,
+        conversation.listingId || undefined,
+        isRecipientOnline, // Pass online status to check if we should send
+      ).catch((error) => {
+        // Log error but don't fail message creation
+        this.logger.error(`Failed to send email notification: ${error.message}`, error.stack);
+      });
 
       this.logger.log(`Message ${message.id} sent by ${senderId} in conversation ${conversationId}`);
       return message;
@@ -317,30 +340,22 @@ export class ChatService {
       },
     });
     
-    // Invalidate unread count cache
-    await this.cache.del(`chat-unread-count:${userId}`);
+    // No cache to invalidate - unread count is always fresh
   }
 
   async getUnreadCount(userId: string) {
-    // Cache unread count for 30 seconds (matches frontend refetch interval)
-    const cacheKey = `chat-unread-count:${userId}`;
-    
-    return this.cache.getOrSet(
-      cacheKey,
-      async () => {
-        const count = await this.prisma.message.count({
-          where: {
-            conversation: {
-              OR: [{ participant1Id: userId }, { participant2Id: userId }],
-            },
-            senderId: { not: userId },
-            readAt: null,
-          },
-        });
-        return count;
+    // NO CACHING - Always fetch fresh for real-time accuracy
+    // Cache was causing stale data and delays in message delivery
+    const count = await this.prisma.message.count({
+      where: {
+        conversation: {
+          OR: [{ participant1Id: userId }, { participant2Id: userId }],
+        },
+        senderId: { not: userId },
+        readAt: null,
       },
-      30, // 30 seconds cache
-    );
+    });
+    return count;
   }
 
   async updateMessage(
@@ -507,6 +522,117 @@ export class ChatService {
     } catch (error) {
       this.logger.error(`Error searching messages: ${error.message}`, error.stack);
       throw new BadRequestException('Failed to search messages');
+    }
+  }
+
+  /**
+   * Send email notification if user has email notifications enabled
+   * ALWAYS sends to landlords (regardless of online status) to make it super easy for students
+   * Only sends to other users if they're offline
+   * This is called asynchronously and doesn't block message creation
+   */
+  private async sendEmailNotificationIfEnabled(
+    recipientId: string,
+    senderId: string,
+    messageContent: string,
+    conversationId: string,
+    listingId: string | undefined,
+    isRecipientOnline: boolean,
+  ): Promise<void> {
+    try {
+      // Get recipient user with preferences and role
+      const recipient = await this.prisma.user.findUnique({
+        where: { id: recipientId },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          preferences: true,
+        },
+      });
+
+      if (!recipient || !recipient.email) {
+        this.logger.warn(`Recipient ${recipientId} not found or has no email`);
+        return;
+      }
+
+      // CRITICAL: Always send email to landlords (regardless of online status)
+      // This makes it super easy for students to connect with landlords
+      const isLandlord = recipient.role === 'landlord';
+      
+      // For non-landlords, only send if offline
+      if (!isLandlord && isRecipientOnline) {
+        this.logger.debug(`Recipient ${recipientId} is online and not a landlord - skipping email`);
+        return;
+      }
+
+      // Check if email notifications are enabled (default to true if not set)
+      // For landlords, we still respect preferences but log if disabled
+      const preferences = recipient.preferences as any;
+      const emailNotificationsEnabled = preferences?.emailNotifications !== false;
+
+      if (!emailNotificationsEnabled) {
+        if (isLandlord) {
+          this.logger.warn(`Landlord ${recipientId} has email notifications disabled - consider enabling for better student communication`);
+        } else {
+          this.logger.debug(`Email notifications disabled for user ${recipientId}`);
+        }
+        return;
+      }
+
+      // Get sender information
+      const sender = await this.prisma.user.findUnique({
+        where: { id: senderId },
+        select: {
+          id: true,
+          name: true,
+        },
+      });
+
+      if (!sender) {
+        this.logger.warn(`Sender ${senderId} not found`);
+        return;
+      }
+
+      // Get listing information if available
+      let listingTitle: string | undefined;
+      if (listingId) {
+        const listing = await this.prisma.listing.findUnique({
+          where: { id: listingId },
+          select: { title: true },
+        });
+        listingTitle = listing?.title;
+      }
+
+      // Prepare message preview (first 150 characters)
+      const messagePreview = messageContent.length > 150
+        ? `${messageContent.substring(0, 150)}...`
+        : messageContent;
+
+      // Get frontend URL for unsubscribe link
+      const frontendUrl = process.env.FRONTEND_URL || 'https://www.roomrentalusa.com';
+      const unsubscribeLink = `${frontendUrl}/settings`;
+
+      // Send email notification
+      const emailSent = await this.emailService.sendMessageNotification({
+        to: recipient.email,
+        recipientName: recipient.name || 'User',
+        senderName: sender.name || 'User',
+        messagePreview,
+        conversationId,
+        listingTitle,
+        unsubscribeLink,
+      });
+
+      if (emailSent) {
+        this.logger.log(`Email notification sent to ${recipient.email} for conversation ${conversationId}`);
+      } else {
+        this.logger.warn(`Failed to send email notification to ${recipient.email}`);
+      }
+    } catch (error) {
+      // Don't throw - this is a background operation
+      this.logger.error(`Error in sendEmailNotificationIfEnabled: ${error.message}`, error.stack);
     }
   }
 }
