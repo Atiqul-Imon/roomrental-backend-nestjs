@@ -318,6 +318,7 @@ If you did not create an account, please ignore this email.
     conversationId: string;
     listingTitle?: string;
     unsubscribeLink?: string;
+    recipientRole?: string;
   }): Promise<boolean> {
     try {
       if (!this.resend) {
@@ -326,7 +327,10 @@ If you did not create an account, please ignore this email.
       }
 
       const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'https://www.roomrentalusa.com';
-      const conversationLink = `${frontendUrl}/messages/${data.conversationId}`;
+      // Navigate to landlord dashboard with conversationId if recipient is a landlord, otherwise to messages page
+      const conversationLink = data.recipientRole === 'landlord' 
+        ? `${frontendUrl}/landlord/dashboard?conversationId=${data.conversationId}`
+        : `${frontendUrl}/messages/${data.conversationId}`;
       const unsubscribeLink = data.unsubscribeLink || `${frontendUrl}/settings`;
 
       // Spam-free template: Professional, clear, no trigger words
