@@ -228,21 +228,31 @@ export class ChatService {
         });
       }
 
-      // Send email notification:
+      // Check if this is the first message in the conversation
+      // Only send email notification for the first message to avoid spam
+      const messageCount = await this.prisma.message.count({
+        where: { conversationId },
+      });
+
+      // Send email notification ONLY for the first message:
       // - ALWAYS send to landlords (regardless of online status) - makes it super easy for students to connect
       // - Send to other users only if offline
       // This is async and non-blocking - don't wait for it
-      this.sendEmailNotificationIfEnabled(
-        recipientId,
-        senderId,
-        message.content,
-        conversationId,
-        conversation.listingId || undefined,
-        isRecipientOnline, // Pass online status to check if we should send
-      ).catch((error) => {
-        // Log error but don't fail message creation
-        this.logger.error(`Failed to send email notification: ${error.message}`, error.stack);
-      });
+      if (messageCount === 1) {
+        this.sendEmailNotificationIfEnabled(
+          recipientId,
+          senderId,
+          message.content,
+          conversationId,
+          conversation.listingId || undefined,
+          isRecipientOnline, // Pass online status to check if we should send
+        ).catch((error) => {
+          // Log error but don't fail message creation
+          this.logger.error(`Failed to send email notification: ${error.message}`, error.stack);
+        });
+      } else {
+        this.logger.debug(`Skipping email notification - not the first message (message count: ${messageCount})`);
+      }
 
       this.logger.log(`Message ${message.id} sent by ${senderId} in conversation ${conversationId}`);
       return message;
@@ -623,6 +633,7 @@ export class ChatService {
         conversationId,
         listingTitle,
         unsubscribeLink,
+        recipientRole: recipient.role,
       });
 
       if (emailSent) {
