@@ -56,19 +56,18 @@ export class ChatService {
       throw new BadRequestException('Cannot create conversation with yourself');
     }
 
-    // Check if conversation exists
+    // IMPORTANT: Find conversation by user pair ONLY, ignoring listingId
+    // This ensures one conversation per user pair, regardless of which listing they're discussing
     let conversation = await this.prisma.conversation.findFirst({
       where: {
         OR: [
           {
             participant1Id: userId1,
             participant2Id: userId2,
-            listingId: listingId || null,
           },
           {
             participant1Id: userId2,
             participant2Id: userId1,
-            listingId: listingId || null,
           },
         ],
       },
@@ -94,13 +93,41 @@ export class ChatService {
       },
     });
 
+    // If conversation exists but listingId is different, update it to the new listingId
+    if (conversation && listingId && conversation.listingId !== listingId) {
+      conversation = await this.prisma.conversation.update({
+        where: { id: conversation.id },
+        data: { listingId },
+        include: {
+          participant1: { 
+            select: { id: true, name: true, profileImage: true, email: true } 
+          },
+          participant2: { 
+            select: { id: true, name: true, profileImage: true, email: true } 
+          },
+          listing: {
+            select: { id: true, title: true, images: true, price: true }
+          },
+          messages: {
+            take: 20,
+            orderBy: { createdAt: 'desc' },
+            include: {
+              sender: { 
+                select: { id: true, name: true, profileImage: true } 
+              },
+            },
+          },
+        },
+      });
+    }
+
     // Create if doesn't exist
     if (!conversation) {
       conversation = await this.prisma.conversation.create({
         data: {
           participant1Id: userId1,
           participant2Id: userId2,
-          listingId: listingId || null,
+          listingId: listingId || null, // Store listingId for reference, but don't use it for uniqueness
         },
         include: {
           participant1: { 
@@ -228,17 +255,25 @@ export class ChatService {
         });
       }
 
-      // Check if this is the first message in the conversation
-      // Only send email notification for the first message to avoid spam
-      const messageCount = await this.prisma.message.count({
-        where: { conversationId },
+      // Check if we should send email notification based on 1-hour cooldown
+      // Send email if:
+      // 1. This is the first message in the conversation, OR
+      // 2. Last email was sent more than 1 hour ago
+      const conversationData = await this.prisma.conversation.findUnique({
+        where: { id: conversationId },
+        select: { lastEmailSentAt: true },
       });
 
-      // Send email notification ONLY for the first message:
+      const now = new Date();
+      const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000); // 1 hour in milliseconds
+      const shouldSendEmail = !conversationData?.lastEmailSentAt || 
+                              conversationData.lastEmailSentAt < oneHourAgo;
+
+      // Send email notification if cooldown period has passed:
       // - ALWAYS send to landlords (regardless of online status) - makes it super easy for students to connect
       // - Send to other users only if offline
       // This is async and non-blocking - don't wait for it
-      if (messageCount === 1) {
+      if (shouldSendEmail) {
         this.sendEmailNotificationIfEnabled(
           recipientId,
           senderId,
@@ -251,7 +286,9 @@ export class ChatService {
           this.logger.error(`Failed to send email notification: ${error.message}`, error.stack);
         });
       } else {
-        this.logger.debug(`Skipping email notification - not the first message (message count: ${messageCount})`);
+        const timeSinceLastEmail = now.getTime() - (conversationData?.lastEmailSentAt?.getTime() || 0);
+        const minutesRemaining = Math.ceil((60 * 60 * 1000 - timeSinceLastEmail) / (60 * 1000));
+        this.logger.debug(`Skipping email notification - cooldown active (${minutesRemaining} minutes remaining)`);
       }
 
       this.logger.log(`Message ${message.id} sent by ${senderId} in conversation ${conversationId}`);
@@ -637,6 +674,11 @@ export class ChatService {
       });
 
       if (emailSent) {
+        // Update lastEmailSentAt timestamp in conversation
+        await this.prisma.conversation.update({
+          where: { id: conversationId },
+          data: { lastEmailSentAt: new Date() },
+        });
         this.logger.log(`Email notification sent to ${recipient.email} for conversation ${conversationId}`);
       } else {
         this.logger.warn(`Failed to send email notification to ${recipient.email}`);
