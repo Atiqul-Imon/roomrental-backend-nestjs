@@ -335,6 +335,12 @@ export class ListingsService {
               nearbyUniversities: true,
               nearbyTransit: true,
               viewCount: true,
+              billsIncluded: true,
+              securityDeposit: true,
+              roomFurnishing: true,
+              minStayMonths: true,
+              maxStayMonths: true,
+              currentRoomiesCount: true,
               createdAt: true,
               updatedAt: true,
               landlord: {
