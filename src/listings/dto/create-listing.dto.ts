@@ -171,6 +171,39 @@ export class CreateListingDto {
   @IsString({ each: true })
   @IsOptional()
   nearbyTransit?: string[];
+
+  @ApiProperty({ required: false, default: false })
+  @IsOptional()
+  billsIncluded?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  securityDeposit?: number;
+
+  @ApiProperty({ required: false, enum: ['furnished', 'unfurnished', 'partially_furnished'] })
+  @IsString()
+  @IsOptional()
+  roomFurnishing?: 'furnished' | 'unfurnished' | 'partially_furnished';
+
+  @ApiProperty({ required: false })
+  @IsNumber()
+  @IsOptional()
+  @Min(1)
+  minStayMonths?: number;
+
+  @ApiProperty({ required: false })
+  @IsNumber()
+  @IsOptional()
+  @Min(1)
+  maxStayMonths?: number;
+
+  @ApiProperty({ required: false, default: 0 })
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  currentRoomiesCount?: number;
 }
 
 

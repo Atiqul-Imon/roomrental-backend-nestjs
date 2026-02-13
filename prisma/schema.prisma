@@ -122,6 +122,14 @@ model Listing {
   nearbyTransit      String[] // Array of transit station names
   viewCount          Int               @default(0) // For popularity sorting
 
+  // Additional listing details
+  billsIncluded      Boolean?          @default(false)
+  securityDeposit     Float?
+  roomFurnishing     String? // "furnished" | "unfurnished" | "partially_furnished"
+  minStayMonths      Int?
+  maxStayMonths      Int?
+  currentRoomiesCount Int?             @default(0)
+
   // Relations
   landlord      User           @relation("LandlordListings", fields: [landlordId], references: [id], onDelete: Cascade)
   favorites     Favorite[]
