@@ -12,6 +12,7 @@ import { CreateListingDto } from './dto/create-listing.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
 import { SearchListingsDto } from './dto/search-listings.dto';
 import { SearchHistoryService } from '../search-history/search-history.service';
+import { logger } from '../common/utils/logger';
 
 @Injectable()
 export class ListingsService {
@@ -393,7 +394,7 @@ export class ListingsService {
 
         // Track search history (async, don't wait)
         this.trackSearchHistory(userId, searchDto, total).catch((err) => {
-          console.error('Error tracking search history:', err);
+          logger.error('Error tracking search history', err);
         });
 
         return {
@@ -434,7 +435,7 @@ export class ListingsService {
       });
     } catch (error) {
       // Silently fail - search history tracking shouldn't break search
-      console.error('Failed to track search history:', error);
+      logger.error('Failed to track search history', error);
     }
   }
 
@@ -673,7 +674,7 @@ export class ListingsService {
         300, // 5 minutes cache
       );
     } catch (error) {
-      console.error('Error in findMyListings:', error);
+      logger.error('Error in findMyListings', error);
       throw error;
     }
   }

@@ -19,6 +19,7 @@ import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { OtpService } from '../otp/otp.service';
 import { EmailService } from '../email/email.service';
 import { SupabaseService } from './supabase.service';
+import { logger } from '../common/utils/logger';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -283,7 +284,7 @@ export class AuthService {
           where: { id: resetToken.id },
         });
         // Log error but still return success (don't reveal email exists)
-        console.error(`Failed to send password reset email to ${normalizedEmail}`);
+        logger.error(`Failed to send password reset email to ${normalizedEmail}`);
       }
     }
 
@@ -556,8 +557,8 @@ export class AuthService {
       // Generate your JWT tokens
       const tokens = this.generateTokens(user.id, user.email, user.role);
 
-      // Log for debugging (remove in production or use proper logger)
-      console.log('[OAuth] User authenticated:', {
+      // Log for debugging
+      logger.log('[OAuth] User authenticated', {
         userId: user.id,
         email: user.email,
         role: user.role,
@@ -590,7 +591,7 @@ export class AuthService {
         throw error;
       }
       // Log the full error for debugging
-      console.error('Supabase Auth Error:', error);
+      logger.error('Supabase Auth Error', error);
       throw new UnauthorizedException(
         `Failed to authenticate with Supabase: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
