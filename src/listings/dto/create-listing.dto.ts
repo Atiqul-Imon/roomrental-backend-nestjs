@@ -40,11 +40,11 @@ export enum GenderPreference {
 class LocationDto {
   @ApiProperty()
   @IsString()
-  city: string;
+  city!: string;
 
   @ApiProperty()
   @IsString()
-  state: string;
+  state!: string;
 
   @ApiProperty({ required: false })
   @IsString()
@@ -72,28 +72,28 @@ export class CreateListingDto {
   @IsString()
   @MinLength(5, { message: 'Title must be at least 5 characters long' })
   @MaxLength(200, { message: 'Title must not exceed 200 characters' })
-  title: string;
+  title!: string;
 
   @ApiProperty({ maxLength: 2000, minLength: 20 })
   @IsString()
   @MinLength(20, { message: 'Description must be at least 20 characters long' })
   @MaxLength(2000, { message: 'Description must not exceed 2000 characters' })
-  description: string;
+  description!: string;
 
   @ApiProperty()
   @IsNumber()
   @Min(0)
-  price: number;
+  price!: number;
 
   @ApiProperty()
   @IsNumber()
   @Min(0)
-  bedrooms: number;
+  bedrooms!: number;
 
   @ApiProperty()
   @IsNumber()
   @Min(0)
-  bathrooms: number;
+  bathrooms!: number;
 
   @ApiProperty({ required: false })
   @IsNumber()
@@ -103,7 +103,7 @@ export class CreateListingDto {
   @ApiProperty({ type: LocationDto })
   @ValidateNested()
   @Type(() => LocationDto)
-  location: LocationDto;
+  location!: LocationDto;
 
   @ApiProperty({ type: [String], required: false })
   @IsArray()
@@ -124,7 +124,7 @@ export class CreateListingDto {
 
   @ApiProperty()
   @IsDateString()
-  availabilityDate: string;
+  availabilityDate!: string;
 
   @ApiProperty({ required: false, description: 'Optional: Assign this listing to an existing landlord (Admin only)' })
   @IsString()

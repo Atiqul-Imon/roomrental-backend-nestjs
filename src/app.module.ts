@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { DatabaseModule } from './database/database.module';
@@ -17,13 +17,20 @@ import { SocketModule } from './socket/socket.module';
 import { ChatModule } from './chat/chat.module';
 import { SavedSearchesModule } from './saved-searches/saved-searches.module';
 import { SearchHistoryModule } from './search-history/search-history.module';
+import { validateEnv } from './config/env.validation';
+import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
 
 @Module({
   imports: [
-    // Configuration
+    // Configuration with validation
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
+      validate: validateEnv,
+      validationOptions: {
+        allowUnknown: true,
+        abortEarly: false,
+      },
     }),
     
     // Rate limiting
@@ -57,5 +64,12 @@ import { SearchHistoryModule } from './search-history/search-history.module';
     SearchHistoryModule,
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    // Apply request logging middleware to all routes
+    consumer
+      .apply(RequestLoggerMiddleware)
+      .forRoutes('*');
+  }
+}
 
