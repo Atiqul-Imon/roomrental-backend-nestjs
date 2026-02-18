@@ -130,7 +130,14 @@ export class ProfileService {
         }
 
         // Get user's listings if landlord
-        let listings = [];
+        let listings: Array<{
+          id: string;
+          title: string;
+          price: number;
+          city: string;
+          state: string;
+          images: string[];
+        }> = [];
         if (user.role === 'landlord') {
           listings = await this.prisma.listing.findMany({
             where: { landlordId: userId, status: 'available' },

@@ -5,9 +5,9 @@ import { Resend } from 'resend';
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
-  private resend: Resend;
-  private fromEmail: string;
-  private fromName: string;
+  private resend!: Resend;
+  private fromEmail!: string;
+  private fromName!: string;
 
   constructor(private configService: ConfigService) {
     this.initializeResend();

@@ -15,6 +15,19 @@ import { OtpService } from '../otp/otp.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { ThrottleIpGuard } from '../common/guards/throttle-ip.guard';
 
+/**
+ * Authentication Controller
+ * 
+ * Handles HTTP requests for authentication endpoints including:
+ * - User registration (legacy and OTP-based)
+ * - User login and token refresh
+ * - Password management (forgot, reset, change)
+ * - OTP generation and verification
+ * 
+ * All endpoints are rate-limited to prevent abuse.
+ * 
+ * @class AuthController
+ */
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
