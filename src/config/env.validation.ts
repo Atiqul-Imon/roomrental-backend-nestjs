@@ -6,6 +6,7 @@ import {
   IsIn,
   IsNumberString,
   IsUrl,
+  IsEmail,
   ValidateIf,
   validateSync,
 } from 'class-validator';
@@ -69,7 +70,7 @@ class EnvironmentVariables {
   RESEND_API_KEY?: string;
 
   @IsOptional()
-  @IsString()
+  @IsEmail({}, { message: 'RESEND_FROM_EMAIL must be a valid email address if provided' })
   RESEND_FROM_EMAIL?: string;
 
   @IsOptional()
@@ -83,6 +84,24 @@ class EnvironmentVariables {
   @IsOptional()
   @IsNumberString({}, { message: 'THROTTLE_LIMIT must be a valid number if provided' })
   THROTTLE_LIMIT?: string;
+
+  // Redis configuration (optional)
+  @IsOptional()
+  @IsString()
+  REDIS_HOST?: string;
+
+  @IsOptional()
+  @ValidateIf((o) => o.REDIS_PORT !== undefined)
+  @IsNumberString({}, { message: 'REDIS_PORT must be a valid number if provided' })
+  REDIS_PORT?: string;
+
+  @IsOptional()
+  @IsString()
+  REDIS_PASSWORD?: string;
+
+  @IsOptional()
+  @IsString()
+  REDIS_URL?: string;
 }
 
 /**

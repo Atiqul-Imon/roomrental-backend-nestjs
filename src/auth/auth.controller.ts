@@ -13,6 +13,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { OtpService } from '../otp/otp.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { ThrottleIpGuard } from '../common/guards/throttle-ip.guard';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -23,19 +24,25 @@ export class AuthController {
   ) {}
 
   @Post('register')
+  @UseGuards(ThrottleIpGuard)
+  @Throttle({ auth: { limit: 5, ttl: 60000 } }) // 5 requests per minute
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Register a new user (legacy - use register-with-otp)' })
   @ApiResponse({ status: 201, description: 'User successfully registered' })
   @ApiResponse({ status: 409, description: 'User already exists' })
+  @ApiResponse({ status: 429, description: 'Too many requests. Please try again later.' })
   async register(@Body() registerDto: RegisterDto) {
     return this.authService.register(registerDto);
   }
 
   @Post('send-otp')
+  @UseGuards(ThrottleIpGuard)
+  @Throttle({ auth: { limit: 5, ttl: 60000 } }) // 5 requests per minute
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Send OTP code to email for registration' })
   @ApiResponse({ status: 200, description: 'OTP sent successfully' })
   @ApiResponse({ status: 400, description: 'Failed to send OTP' })
+  @ApiResponse({ status: 429, description: 'Too many requests. Please try again later.' })
   async sendOtp(@Body() sendOtpDto: SendOtpDto) {
     const result = await this.otpService.sendOtp(
       sendOtpDto.email,
@@ -73,20 +80,26 @@ export class AuthController {
   }
 
   @Post('register-with-otp')
+  @UseGuards(ThrottleIpGuard)
+  @Throttle({ auth: { limit: 5, ttl: 60000 } }) // 5 requests per minute
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Register a new user with OTP verification' })
   @ApiResponse({ status: 201, description: 'User successfully registered' })
   @ApiResponse({ status: 400, description: 'Invalid OTP or validation error' })
   @ApiResponse({ status: 409, description: 'User already exists' })
+  @ApiResponse({ status: 429, description: 'Too many requests. Please try again later.' })
   async registerWithOtp(@Body() registerDto: RegisterWithOtpDto) {
     return this.authService.registerWithOtp(registerDto);
   }
 
   @Post('login')
+  @UseGuards(ThrottleIpGuard)
+  @Throttle({ auth: { limit: 10, ttl: 60000 } }) // 10 requests per minute (not too strict)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login user' })
   @ApiResponse({ status: 200, description: 'User successfully logged in' })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
+  @ApiResponse({ status: 429, description: 'Too many requests. Please try again later.' })
   async login(@Body() loginDto: LoginDto) {
     return this.authService.login(loginDto);
   }
@@ -108,18 +121,24 @@ export class AuthController {
   }
 
   @Post('forgot-password')
+  @UseGuards(ThrottleIpGuard)
+  @Throttle({ auth: { limit: 5, ttl: 60000 } }) // 5 requests per minute
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Request password reset' })
   @ApiResponse({ status: 200, description: 'Password reset email sent (if account exists)' })
+  @ApiResponse({ status: 429, description: 'Too many requests. Please try again later.' })
   async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
     return this.authService.forgotPassword(forgotPasswordDto);
   }
 
   @Post('reset-password')
+  @UseGuards(ThrottleIpGuard)
+  @Throttle({ auth: { limit: 5, ttl: 60000 } }) // 5 requests per minute
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Reset password with token' })
   @ApiResponse({ status: 200, description: 'Password successfully reset' })
   @ApiResponse({ status: 400, description: 'Invalid or expired token' })
+  @ApiResponse({ status: 429, description: 'Too many requests. Please try again later.' })
   async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
     return this.authService.resetPassword(resetPasswordDto);
   }
@@ -137,8 +156,8 @@ export class AuthController {
   }
 
   @Post('supabase/verify')
-  @UseGuards(ThrottlerGuard)
-  @Throttle({ default: { limit: 10, ttl: 3600000 } }) // 10 requests per hour (3600 seconds = 1 hour)
+  @UseGuards(ThrottleIpGuard)
+  @Throttle({ strict: { limit: 10, ttl: 3600000 } }) // 10 requests per hour
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Verify Supabase Auth token and sync user' })
   @ApiResponse({ status: 200, description: 'User authenticated successfully' })

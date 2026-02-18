@@ -19,6 +19,7 @@ import { SavedSearchesModule } from './saved-searches/saved-searches.module';
 import { SearchHistoryModule } from './search-history/search-history.module';
 import { validateEnv } from './config/env.validation';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
+import { LoggerModule } from './common/logger/logger.module';
 
 @Module({
   imports: [
@@ -33,11 +34,22 @@ import { RequestLoggerMiddleware } from './common/middleware/request-logger.midd
       },
     }),
     
-    // Rate limiting
+    // Rate limiting - Multiple strategies for different endpoint types
     ThrottlerModule.forRoot([
       {
-        ttl: parseInt(process.env.THROTTLE_TTL || '60') * 1000,
-        limit: parseInt(process.env.THROTTLE_LIMIT || '100'),
+        name: 'default',
+        ttl: parseInt(process.env.THROTTLE_TTL || '60') * 1000, // 60 seconds
+        limit: parseInt(process.env.THROTTLE_LIMIT || '100'), // 100 requests per minute
+      },
+      {
+        name: 'auth',
+        ttl: 60 * 1000, // 60 seconds
+        limit: 10, // 10 requests per minute for auth endpoints (not too strict)
+      },
+      {
+        name: 'strict',
+        ttl: 60 * 60 * 1000, // 1 hour
+        limit: 5, // 5 requests per hour for very sensitive operations
       },
     ]),
     
@@ -46,6 +58,9 @@ import { RequestLoggerMiddleware } from './common/middleware/request-logger.midd
     
     // Cache
     CacheModule,
+    
+    // Logger
+    LoggerModule,
     
     // Feature modules
     HealthModule,
