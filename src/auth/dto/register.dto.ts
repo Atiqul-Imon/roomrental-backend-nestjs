@@ -9,12 +9,12 @@ export enum UserRole {
 export class RegisterDto {
   @ApiProperty({ example: 'user@example.com' })
   @IsEmail()
-  email: string;
+  email!: string;
 
   @ApiProperty({ example: 'SecurePassword123!', minLength: 8 })
   @IsString()
   @MinLength(8)
-  password: string;
+  password!: string;
 
   @ApiProperty({ example: 'John Doe', required: false })
   @IsString()

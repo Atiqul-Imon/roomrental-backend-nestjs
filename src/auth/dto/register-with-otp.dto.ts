@@ -5,12 +5,12 @@ import { UserRole } from './register.dto';
 export class RegisterWithOtpDto {
   @ApiProperty({ example: 'user@example.com' })
   @IsEmail()
-  email: string;
+  email!: string;
 
   @ApiProperty({ example: 'SecurePassword123!', minLength: 8 })
   @IsString()
   @MinLength(8)
-  password: string;
+  password!: string;
 
   @ApiProperty({ example: 'John Doe', required: false })
   @IsString()
@@ -26,6 +26,6 @@ export class RegisterWithOtpDto {
   @IsString()
   @MinLength(6)
   @MaxLength(6)
-  otpCode: string;
+  otpCode!: string;
 }
 

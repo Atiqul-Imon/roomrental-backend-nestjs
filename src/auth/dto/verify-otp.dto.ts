@@ -4,13 +4,13 @@ import { ApiProperty } from '@nestjs/swagger';
 export class VerifyOtpDto {
   @ApiProperty({ example: 'user@example.com' })
   @IsEmail()
-  email: string;
+  email!: string;
 
   @ApiProperty({ example: '123456', minLength: 6, maxLength: 6 })
   @IsString()
   @MinLength(6)
   @MaxLength(6)
-  code: string;
+  code!: string;
 
   @ApiProperty({ example: 'registration', required: false, default: 'registration' })
   @IsString()

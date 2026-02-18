@@ -4,7 +4,7 @@ import { ApiProperty } from '@nestjs/swagger';
 export class RefreshTokenDto {
   @ApiProperty()
   @IsString()
-  refreshToken: string;
+  refreshToken!: string;
 }
 
 
