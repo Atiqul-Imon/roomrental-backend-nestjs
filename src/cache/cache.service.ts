@@ -5,7 +5,7 @@ import Redis from 'ioredis';
 @Injectable()
 export class CacheService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(CacheService.name);
-  private client: Redis;
+  private client!: Redis;
   private isConnected = false;
 
   constructor(private configService: ConfigService) {}
@@ -53,7 +53,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
       await this.client.ping();
       this.isConnected = true;
     } catch (error) {
-      this.logger.error(`Failed to connect to Redis: ${error.message}`);
+      this.logger.error(`Failed to connect to Redis: ${error instanceof Error ? error.message : String(error)}`);
       this.logger.warn('Application will continue without Redis caching');
       this.isConnected = false;
     }
@@ -88,7 +88,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
       }
       return JSON.parse(value) as T;
     } catch (error) {
-      this.logger.error(`Error getting cache key ${key}: ${error.message}`);
+      this.logger.error(`Error getting cache key ${key}: ${error instanceof Error ? error.message : String(error)}`);
       return null;
     }
   }
@@ -110,7 +110,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
       }
       return true;
     } catch (error) {
-      this.logger.error(`Error setting cache key ${key}: ${error.message}`);
+      this.logger.error(`Error setting cache key ${key}: ${error instanceof Error ? error.message : String(error)}`);
       return false;
     }
   }
@@ -127,7 +127,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
       await this.client.del(key);
       return true;
     } catch (error) {
-      this.logger.error(`Error deleting cache key ${key}: ${error.message}`);
+      this.logger.error(`Error deleting cache key ${key}: ${error instanceof Error ? error.message : String(error)}`);
       return false;
     }
   }
@@ -168,7 +168,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
             this.logger.debug(`Deleted ${deletedCount} keys matching pattern: ${pattern}`);
             resolve(deletedCount);
           } catch (error) {
-            this.logger.error(`Error executing pipeline delete: ${error.message}`);
+            this.logger.error(`Error executing pipeline delete: ${error instanceof Error ? error.message : String(error)}`);
             reject(error);
           }
         });
@@ -179,7 +179,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
         });
       });
     } catch (error) {
-      this.logger.error(`Error deleting cache pattern ${pattern}: ${error.message}`);
+      this.logger.error(`Error deleting cache pattern ${pattern}: ${error instanceof Error ? error.message : String(error)}`);
       return 0;
     }
   }
@@ -196,7 +196,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
       const result = await this.client.exists(key);
       return result === 1;
     } catch (error) {
-      this.logger.error(`Error checking cache key ${key}: ${error.message}`);
+      this.logger.error(`Error checking cache key ${key}: ${error instanceof Error ? error.message : String(error)}`);
       return false;
     }
   }

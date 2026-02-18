@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { CreateSearchHistoryDto } from './dto/create-search-history.dto';
 
@@ -11,7 +12,7 @@ export class SearchHistoryService {
       data: {
         userId: userId || null,
         searchQuery: createDto.searchQuery || null,
-        filters: createDto.filters || null,
+        filters: createDto.filters ? (createDto.filters as Prisma.InputJsonValue) : Prisma.JsonNull,
         resultsCount: createDto.resultsCount || 0,
         clickedListingId: createDto.clickedListingId || null,
       },
@@ -132,7 +133,7 @@ export class SearchHistoryService {
       this.prisma.searchHistory.findMany({
         where: {
           ...where,
-          filters: { not: null },
+          filters: { not: Prisma.JsonNull },
         },
         select: {
           filters: true,

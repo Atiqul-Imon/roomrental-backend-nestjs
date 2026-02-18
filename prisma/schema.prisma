@@ -123,12 +123,12 @@ model Listing {
   viewCount          Int               @default(0) // For popularity sorting
 
   // Additional listing details
-  billsIncluded      Boolean?          @default(false)
+  billsIncluded       Boolean? @default(false)
   securityDeposit     Float?
-  roomFurnishing     String? // "furnished" | "unfurnished" | "partially_furnished"
-  minStayMonths      Int?
-  maxStayMonths      Int?
-  currentRoomiesCount Int?             @default(0)
+  roomFurnishing      String? // "furnished" | "unfurnished" | "partially_furnished"
+  minStayMonths       Int?
+  maxStayMonths       Int?
+  currentRoomiesCount Int?     @default(0)
 
   // Relations
   landlord      User           @relation("LandlordListings", fields: [landlordId], references: [id], onDelete: Cascade)
@@ -159,6 +159,11 @@ model Listing {
   @@index([availabilityDate, status]) // Availability searches
   @@index([status, bedrooms, bathrooms]) // Bedroom/bathroom filtering
   @@index([status, price, createdAt]) // Price and date sorting
+  // Additional indexes for search optimization
+  @@index([status, city, state, propertyType]) // Common search filter combination
+  @@index([status, price, bedrooms, bathrooms]) // Price and room filtering
+  @@index([status, petFriendly, parkingAvailable]) // Boolean filter combination
+  @@index([status, availabilityDate, price]) // Availability and price sorting
   @@map("listings")
 }
 

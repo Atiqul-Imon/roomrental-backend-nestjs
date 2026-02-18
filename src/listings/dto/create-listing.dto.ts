@@ -10,6 +10,7 @@ import {
   Max,
   MaxLength,
   MinLength,
+  IsNotEmpty,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
@@ -38,32 +39,42 @@ export enum GenderPreference {
 }
 
 class LocationDto {
-  @ApiProperty()
-  @IsString()
+  @ApiProperty({ description: 'City name', example: 'Los Angeles' })
+  @IsString({ message: 'City must be a string' })
+  @IsNotEmpty({ message: 'City is required' })
+  @MaxLength(100, { message: 'City must not exceed 100 characters' })
   city!: string;
 
-  @ApiProperty()
-  @IsString()
+  @ApiProperty({ description: 'State name or abbreviation', example: 'CA' })
+  @IsString({ message: 'State must be a string' })
+  @IsNotEmpty({ message: 'State is required' })
+  @MaxLength(50, { message: 'State must not exceed 50 characters' })
   state!: string;
 
-  @ApiProperty({ required: false })
-  @IsString()
+  @ApiProperty({ required: false, description: 'ZIP code', example: '90001' })
+  @IsString({ message: 'ZIP code must be a string' })
   @IsOptional()
+  @MaxLength(10, { message: 'ZIP code must not exceed 10 characters' })
   zip?: string;
 
-  @ApiProperty({ required: false })
-  @IsString()
+  @ApiProperty({ required: false, description: 'Street address', example: '123 Main St' })
+  @IsString({ message: 'Address must be a string' })
   @IsOptional()
+  @MaxLength(200, { message: 'Address must not exceed 200 characters' })
   address?: string;
 
-  @ApiProperty({ required: false })
-  @IsNumber()
+  @ApiProperty({ required: false, description: 'Latitude coordinate', example: 34.0522 })
+  @IsNumber({}, { message: 'Latitude must be a number' })
   @IsOptional()
+  @Min(-90, { message: 'Latitude must be between -90 and 90' })
+  @Max(90, { message: 'Latitude must be between -90 and 90' })
   latitude?: number;
 
-  @ApiProperty({ required: false })
-  @IsNumber()
+  @ApiProperty({ required: false, description: 'Longitude coordinate', example: -118.2437 })
+  @IsNumber({}, { message: 'Longitude must be a number' })
   @IsOptional()
+  @Min(-180, { message: 'Longitude must be between -180 and 180' })
+  @Max(180, { message: 'Longitude must be between -180 and 180' })
   longitude?: number;
 }
 

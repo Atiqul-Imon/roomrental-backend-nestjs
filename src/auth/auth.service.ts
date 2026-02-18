@@ -22,6 +22,18 @@ import { SupabaseService } from './supabase.service';
 import { logger } from '../common/utils/logger';
 import * as crypto from 'crypto';
 
+/**
+ * Authentication Service
+ * 
+ * Handles all authentication and authorization logic including:
+ * - User registration and login
+ * - OTP-based registration and verification
+ * - Password management (reset, change)
+ * - JWT token generation and refresh
+ * - Supabase OAuth integration
+ * 
+ * @class AuthService
+ */
 @Injectable()
 export class AuthService {
   constructor(
@@ -33,6 +45,19 @@ export class AuthService {
     private supabaseService: SupabaseService,
   ) {}
 
+  /**
+   * Register a new user (Legacy method)
+   * 
+   * Legacy registration method kept for backward compatibility.
+   * New registrations should use registerWithOtp for better security.
+   * 
+   * @param {RegisterDto} registerDto - Registration data (email, password, name, role)
+   * @returns {Promise<{success: boolean, data: {user: User, tokens: Tokens}}>}
+   *   Created user and authentication tokens
+   * @throws {ConflictException} If user with email already exists
+   * 
+   * @deprecated Use registerWithOtp instead for better security
+   */
   async register(registerDto: RegisterDto) {
     // Legacy register method - kept for backward compatibility
     // New registration should use registerWithOtp
@@ -82,6 +107,29 @@ export class AuthService {
     };
   }
 
+  /**
+   * Register a new user with OTP verification
+   * 
+   * Preferred registration method that requires email OTP verification.
+   * Verifies the OTP code before creating the user account.
+   * Sends welcome email after successful registration.
+   * 
+   * @param {RegisterWithOtpDto} registerDto - Registration data including OTP code
+   * @returns {Promise<{success: boolean, data: {user: User, tokens: Tokens}}>}
+   *   Created user and authentication tokens
+   * @throws {BadRequestException} If OTP is invalid or expired
+   * @throws {ConflictException} If user with email already exists
+   * 
+   * @example
+   * ```typescript
+   * const result = await authService.registerWithOtp({
+   *   email: 'user@example.com',
+   *   password: 'SecurePass123!',
+   *   name: 'John Doe',
+   *   otpCode: '123456'
+   * });
+   * ```
+   */
   async registerWithOtp(registerDto: RegisterWithOtpDto) {
     const { email, password, name, role, otpCode } = registerDto;
 
@@ -140,6 +188,25 @@ export class AuthService {
     };
   }
 
+  /**
+   * Authenticate user and generate JWT tokens
+   * 
+   * Validates user credentials and returns access and refresh tokens.
+   * Automatically rehashes password if using old bcrypt format (migration to Argon2).
+   * 
+   * @param {LoginDto} loginDto - Login credentials (email and password)
+   * @returns {Promise<{success: boolean, data: {user: User, tokens: Tokens}}>}
+   *   Authenticated user and JWT tokens
+   * @throws {UnauthorizedException} If credentials are invalid
+   * 
+   * @example
+   * ```typescript
+   * const result = await authService.login({
+   *   email: 'user@example.com',
+   *   password: 'SecurePass123!'
+   * });
+   * ```
+   */
   async login(loginDto: LoginDto) {
     const { email, password } = loginDto;
 
@@ -147,7 +214,7 @@ export class AuthService {
       where: { email },
     });
 
-    if (!user) {
+    if (!user || !user.password) {
       throw new UnauthorizedException('Invalid email or password');
     }
 
@@ -189,6 +256,22 @@ export class AuthService {
     };
   }
 
+  /**
+   * Refresh access token using refresh token
+   * 
+   * Validates the refresh token and generates a new access token.
+   * Used to maintain user session without requiring re-authentication.
+   * 
+   * @param {string} refreshToken - Valid refresh token
+   * @returns {Promise<{success: boolean, data: {accessToken: string}}>} New access token
+   * @throws {UnauthorizedException} If refresh token is invalid or expired
+   * 
+   * @example
+   * ```typescript
+   * const result = await authService.refreshToken('refresh-token-string');
+   * // Returns new access token
+   * ```
+   */
   async refreshToken(refreshToken: string) {
     try {
       const payload = this.jwtService.verify<JwtPayload>(refreshToken, {
@@ -295,6 +378,26 @@ export class AuthService {
     };
   }
 
+  /**
+   * Reset password using reset token
+   * 
+   * Validates the reset token and updates user password.
+   * Token must be valid and not expired (1 hour expiration).
+   * 
+   * @param {ResetPasswordDto} resetPasswordDto - Reset token, email, and new password
+   * @returns {Promise<{success: boolean, message: string}>} Success confirmation
+   * @throws {BadRequestException} If token is invalid or expired
+   * @throws {NotFoundException} If user doesn't exist
+   * 
+   * @example
+   * ```typescript
+   * await authService.resetPassword({
+   *   email: 'user@example.com',
+   *   token: 'reset-token',
+   *   newPassword: 'NewSecurePass123!'
+   * });
+   * ```
+   */
   async resetPassword(resetPasswordDto: ResetPasswordDto) {
     const { email, token, newPassword } = resetPasswordDto;
     const normalizedEmail = email.trim().toLowerCase();
@@ -359,6 +462,26 @@ export class AuthService {
     };
   }
 
+  /**
+   * Change password for authenticated user
+   * 
+   * Allows authenticated users to change their password.
+   * Requires current password for verification.
+   * 
+   * @param {string} userId - ID of the user changing password
+   * @param {ChangePasswordDto} changePasswordDto - Current and new password
+   * @returns {Promise<{success: boolean, message: string}>} Success confirmation
+   * @throws {UnauthorizedException} If current password is incorrect
+   * @throws {BadRequestException} If new password is same as current
+   * 
+   * @example
+   * ```typescript
+   * await authService.changePassword('user-id', {
+   *   currentPassword: 'OldPass123!',
+   *   newPassword: 'NewSecurePass123!'
+   * });
+   * ```
+   */
   async changePassword(userId: string, changePasswordDto: ChangePasswordDto) {
     const { currentPassword, newPassword } = changePasswordDto;
 
@@ -367,7 +490,7 @@ export class AuthService {
       where: { id: userId },
     });
 
-    if (!user) {
+    if (!user || !user.password) {
       throw new NotFoundException('User not found');
     }
 

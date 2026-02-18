@@ -294,7 +294,7 @@ export class ChatService {
       this.logger.log(`Message ${message.id} sent by ${senderId} in conversation ${conversationId}`);
       return message;
     } catch (error) {
-      this.logger.error(`Error sending message: ${error.message}`, error.stack);
+      this.logger.error(`Error sending message: ${error instanceof Error ? error.message : String(error)}`, error instanceof Error ? error.stack : undefined);
       throw new BadRequestException('Failed to send message. Please try again.');
     }
   }
@@ -460,7 +460,7 @@ export class ChatService {
       this.logger.log(`Message ${messageId} updated by ${userId}`);
       return updatedMessage;
     } catch (error) {
-      this.logger.error(`Error updating message: ${error.message}`, error.stack);
+      this.logger.error(`Error updating message: ${error instanceof Error ? error.message : String(error)}`, error instanceof Error ? error.stack : undefined);
       throw new BadRequestException('Failed to update message');
     }
   }
@@ -501,7 +501,7 @@ export class ChatService {
       this.logger.log(`Message ${messageId} deleted by ${userId}`);
       return { success: true };
     } catch (error) {
-      this.logger.error(`Error deleting message: ${error.message}`, error.stack);
+      this.logger.error(`Error deleting message: ${error instanceof Error ? error.message : String(error)}`, error instanceof Error ? error.stack : undefined);
       throw new BadRequestException('Failed to delete message');
     }
   }
@@ -567,7 +567,7 @@ export class ChatService {
         },
       };
     } catch (error) {
-      this.logger.error(`Error searching messages: ${error.message}`, error.stack);
+      this.logger.error(`Error searching messages: ${error instanceof Error ? error.message : String(error)}`, error instanceof Error ? error.stack : undefined);
       throw new BadRequestException('Failed to search messages');
     }
   }
@@ -685,7 +685,7 @@ export class ChatService {
       }
     } catch (error) {
       // Don't throw - this is a background operation
-      this.logger.error(`Error in sendEmailNotificationIfEnabled: ${error.message}`, error.stack);
+      this.logger.error(`Error in sendEmailNotificationIfEnabled: ${error instanceof Error ? error.message : String(error)}`, error instanceof Error ? error.stack : undefined);
     }
   }
 }

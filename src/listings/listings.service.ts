@@ -14,6 +14,17 @@ import { SearchListingsDto } from './dto/search-listings.dto';
 import { SearchHistoryService } from '../search-history/search-history.service';
 import { logger } from '../common/utils/logger';
 
+/**
+ * Listings Service
+ * 
+ * Handles all business logic related to property listings including:
+ * - Creating, updating, and deleting listings
+ * - Searching and filtering listings
+ * - Managing listing status and availability
+ * - Caching and performance optimization
+ * 
+ * @class ListingsService
+ */
 @Injectable()
 export class ListingsService {
   constructor(
@@ -23,6 +34,31 @@ export class ListingsService {
     private searchHistoryService: SearchHistoryService,
   ) {}
 
+  /**
+   * Create a new listing
+   * 
+   * Creates a new property listing with the provided details. Handles location data,
+   * validates landlord permissions, and invalidates relevant caches.
+   * 
+   * @param {string} landlordId - ID of the landlord creating the listing
+   * @param {CreateListingDto} createDto - Listing creation data including location, price, amenities, etc.
+   * @param {string} [userRole] - Optional role of the user (admin can create listings for other landlords)
+   * @returns {Promise<{success: boolean, data: Listing}>} Created listing with landlord information
+   * @throws {BadRequestException} If invalid landlordId is provided
+   * 
+   * @example
+   * ```typescript
+   * const listing = await listingsService.create(
+   *   'landlord-id',
+   *   {
+   *     title: 'Cozy Room Near Campus',
+   *     price: 800,
+   *     location: { city: 'Los Angeles', state: 'CA' },
+   *     // ... other fields
+   *   }
+   * );
+   * ```
+   */
   async create(landlordId: string, createDto: CreateListingDto, userRole?: string) {
     const { location, availabilityDate, ...rest } = createDto;
 
@@ -99,6 +135,37 @@ export class ListingsService {
     };
   }
 
+  /**
+   * Find all listings with search and filter capabilities
+   * 
+   * Performs a comprehensive search of listings with support for:
+   * - Location-based filtering (city, state, geospatial radius)
+   * - Price range filtering
+   * - Property features (bedrooms, bathrooms, amenities, etc.)
+   * - Full-text search across title, description, and location
+   * - Multiple sorting options (price, date, popularity, distance)
+   * - Pagination
+   * 
+   * Results are cached for 5 minutes to improve performance.
+   * Search history is tracked asynchronously for analytics.
+   * 
+   * @param {SearchListingsDto} searchDto - Search parameters including filters, pagination, and sorting
+   * @param {string | null} [userId=null] - Optional user ID for tracking search history
+   * @returns {Promise<{success: boolean, data: {listings: Listing[], pagination: PaginationInfo}}>}
+   *   Paginated listing results with metadata
+   * 
+   * @example
+   * ```typescript
+   * const results = await listingsService.findAll({
+   *   city: 'Los Angeles',
+   *   minPrice: 500,
+   *   maxPrice: 1500,
+   *   page: 1,
+   *   limit: 12,
+   *   sort: 'price'
+   * }, 'user-id');
+   * ```
+   */
   async findAll(searchDto: SearchListingsDto, userId: string | null = null) {
     const {
       city,
@@ -276,6 +343,11 @@ export class ListingsService {
         }
 
         // Full-text search with improved relevance
+        // NOTE: Using 'contains' with 'insensitive' mode for case-insensitive search.
+        // For better performance with large datasets, consider:
+        // 1. PostgreSQL full-text search (tsvector/tsquery) with GIN indexes
+        // 2. pg_trgm extension with trigram indexes for fuzzy matching
+        // 3. External search service (Elasticsearch, Algolia) for advanced search
         if (search) {
           where.OR = [
             { title: { contains: search, mode: 'insensitive' } },
@@ -429,8 +501,8 @@ export class ListingsService {
       if (searchDto.maxBedrooms) filters.maxBedrooms = searchDto.maxBedrooms;
 
       await this.searchHistoryService.create(userId, {
-        searchQuery: searchDto.search || null,
-        filters: Object.keys(filters).length > 0 ? filters : null,
+        searchQuery: searchDto.search || undefined,
+        filters: Object.keys(filters).length > 0 ? filters : undefined,
         resultsCount,
       });
     } catch (error) {
@@ -439,6 +511,26 @@ export class ListingsService {
     }
   }
 
+  /**
+   * Find a single listing by ID
+   * 
+   * Retrieves a complete listing with all related data including:
+   * - Landlord information
+   * - Reviews and ratings
+   * - Current roomies count
+   * 
+   * Automatically increments view count for analytics.
+   * Results are cached for 5 minutes.
+   * 
+   * @param {string} id - Listing ID (UUID)
+   * @returns {Promise<{success: boolean, data: Listing}>} Listing with all related data
+   * @throws {NotFoundException} If listing is not found
+   * 
+   * @example
+   * ```typescript
+   * const listing = await listingsService.findOne('listing-uuid');
+   * ```
+   */
   async findOne(id: string) {
     const cacheKey = `listing:${id}`;
 
@@ -477,6 +569,30 @@ export class ListingsService {
     return result;
   }
 
+  /**
+   * Update an existing listing
+   * 
+   * Updates listing details. Only the listing owner or an admin can update.
+   * Handles partial updates (only provided fields are updated).
+   * Invalidates relevant caches after update.
+   * 
+   * @param {string} id - Listing ID to update
+   * @param {string} userId - ID of the user making the update request
+   * @param {UpdateListingDto} updateDto - Partial listing data to update
+   * @param {string} [userRole] - Optional role of the user (admin can update any listing)
+   * @returns {Promise<{success: boolean, data: Listing}>} Updated listing
+   * @throws {NotFoundException} If listing is not found
+   * @throws {ForbiddenException} If user doesn't have permission to update
+   * 
+   * @example
+   * ```typescript
+   * const updated = await listingsService.update(
+   *   'listing-id',
+   *   'user-id',
+   *   { price: 900, description: 'Updated description' }
+   * );
+   * ```
+   */
   async update(id: string, userId: string, updateDto: UpdateListingDto, userRole?: string) {
     const listing = await this.prisma.listing.findUnique({
       where: { id },
@@ -750,6 +866,25 @@ export class ListingsService {
     };
   }
 
+  /**
+   * Get filter counts for search filters
+   * 
+   * Returns counts of listings matching various filter criteria.
+   * Used to populate filter UI with available options and counts.
+   * Results are cached for 5 minutes for performance.
+   * 
+   * @param {SearchListingsDto} searchDto - Base search parameters (filters are applied incrementally)
+   * @returns {Promise<{success: boolean, data: FilterCounts}>} Counts for various filter options
+   * 
+   * @example
+   * ```typescript
+   * const counts = await listingsService.getFilterCounts({
+   *   city: 'Los Angeles',
+   *   state: 'CA'
+   * });
+   * // Returns counts for: price ranges, bedrooms, bathrooms, property types, etc.
+   * ```
+   */
   async getFilterCounts(searchDto: SearchListingsDto) {
     const {
       city,

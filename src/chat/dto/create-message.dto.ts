@@ -10,10 +10,10 @@ export enum MessageType {
 
 export class CreateMessageDto {
   @ApiProperty({ description: 'Message content', maxLength: 5000 })
-  @IsString()
-  @IsNotEmpty()
+  @IsString({ message: 'Message content must be a string' })
+  @IsNotEmpty({ message: 'Message content is required' })
   @MaxLength(5000, { message: 'Message content cannot exceed 5000 characters' })
-  content: string;
+  content!: string;
 
   @ApiPropertyOptional({ enum: MessageType, default: MessageType.TEXT })
   @IsEnum(MessageType)

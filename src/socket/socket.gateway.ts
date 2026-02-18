@@ -26,7 +26,7 @@ import { ConfigService } from '@nestjs/config';
 })
 export class SocketGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
-  server: Server;
+  server!: Server;
 
   private readonly logger = new Logger(SocketGateway.name);
   private readonly connectedUsers = new Map<string, string>(); // userId -> socketId
@@ -55,7 +55,7 @@ export class SocketGateway implements OnGatewayConnection, OnGatewayDisconnect {
       server.adapter(createAdapter(pubClient, subClient));
       this.logger.log('✅ Redis adapter configured for Socket.io');
     } catch (error) {
-      this.logger.error(`Failed to setup Redis adapter: ${error.message}`);
+      this.logger.error(`Failed to setup Redis adapter: ${error instanceof Error ? error.message : String(error)}`);
       this.logger.warn('Socket.io will work in single-server mode');
     }
   }
@@ -88,7 +88,7 @@ export class SocketGateway implements OnGatewayConnection, OnGatewayDisconnect {
       
       this.logger.log(`User ${payload.sub} connected (socket: ${client.id})`);
     } catch (error) {
-      this.logger.error(`Connection error: ${error.message}`);
+      this.logger.error(`Connection error: ${error instanceof Error ? error.message : String(error)}`);
       client.disconnect();
     }
   }
