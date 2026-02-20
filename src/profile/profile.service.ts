@@ -1,13 +1,29 @@
-import { Injectable, NotFoundException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, Inject, forwardRef, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { CacheService } from '../cache/cache.service';
+import { AuthService } from '../auth/auth.service';
 
 @Injectable()
 export class ProfileService {
+  private roleSwitchTracker = new Map<string, { count: number; resetAt: number }>();
+  private readonly MAX_ROLE_SWITCHES_PER_DAY = 5; // Rate limit: 5 switches per day
+
   constructor(
     private prisma: PrismaService,
     private cache: CacheService,
-  ) {}
+    @Inject(forwardRef(() => AuthService))
+    private authService: AuthService,
+  ) {
+    // Clean up rate limit map every hour
+    setInterval(() => {
+      const now = Date.now();
+      for (const [userId, data] of this.roleSwitchTracker.entries()) {
+        if (data.resetAt < now) {
+          this.roleSwitchTracker.delete(userId);
+        }
+      }
+    }, 60 * 60 * 1000); // 1 hour
+  }
 
   async getProfile(userId: string) {
     const cacheKey = `profile:${userId}`;
@@ -267,6 +283,162 @@ export class ProfileService {
       },
       600, // 10 minutes cache
     );
+  }
+
+  /**
+   * Switch user role between student and landlord
+   * Implements dual-mode account switching similar to Fiverr
+   * 
+   * @param {string} userId - User ID requesting role switch
+   * @param {string} newRole - New role to switch to (student or landlord)
+   * @returns {Promise<{success: boolean, data: {user: User, tokens: Tokens, message: string}}>}
+   * @throws {NotFoundException} If user not found
+   * @throws {ForbiddenException} If trying to switch to/from admin roles
+   * @throws {BadRequestException} If rate limit exceeded or invalid role
+   */
+  async switchRole(userId: string, newRole: 'student' | 'landlord') {
+    // Rate limiting check
+    this.checkRoleSwitchRateLimit(userId);
+
+    // Get user
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        profileImage: true,
+        bio: true,
+        phone: true,
+        preferences: true,
+        verification: true,
+        emailVerified: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Validate: Only allow switching between student and landlord
+    const allowedRoles = ['student', 'landlord'];
+    if (!allowedRoles.includes(user.role)) {
+      throw new ForbiddenException(
+        'Admin, staff, and super_admin roles cannot switch to regular user roles. Please contact an administrator.'
+      );
+    }
+
+    if (!allowedRoles.includes(newRole)) {
+      throw new BadRequestException(
+        'Can only switch to student or landlord role.'
+      );
+    }
+
+    // Check if already in the requested role
+    if (user.role === newRole) {
+      throw new BadRequestException(`You are already in ${newRole} mode.`);
+    }
+
+    // Determine if this is first time switching to landlord
+    const isFirstTimeLandlord = user.role === 'student' && newRole === 'landlord';
+
+    // Update user role
+    const updatedUser = await this.prisma.user.update({
+      where: { id: userId },
+      data: { role: newRole },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        profileImage: true,
+        bio: true,
+        phone: true,
+        preferences: true,
+        verification: true,
+        emailVerified: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    // Generate new JWT tokens with updated role
+    const tokens = this.authService.generateNewTokens(
+      updatedUser.id,
+      updatedUser.email,
+      updatedUser.role
+    );
+
+    // Invalidate all user-related caches
+    await Promise.all([
+      this.cache.del(`profile:${userId}`),
+      this.cache.del(`user:${userId}`),
+      this.cache.invalidatePattern(`user-profile:${userId}*`),
+      this.cache.invalidatePattern(`full-profile:${userId}*`),
+      this.cache.invalidatePattern(`listings:${userId}*`),
+    ]);
+
+    // Track this role switch
+    this.trackRoleSwitch(userId);
+
+    // Create appropriate success message
+    const message = newRole === 'landlord'
+      ? isFirstTimeLandlord
+        ? 'Welcome to Landlord mode! You can now create and manage listings.'
+        : 'Switched to Landlord mode. You can now manage your listings.'
+      : 'Switched to Student mode. Browse listings and find your perfect room.';
+
+    return {
+      success: true,
+      data: {
+        user: updatedUser,
+        tokens: {
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+        },
+        isFirstTimeLandlord,
+        message,
+      },
+    };
+  }
+
+  /**
+   * Check rate limit for role switching
+   * Prevents abuse by limiting switches to 5 per day
+   */
+  private checkRoleSwitchRateLimit(userId: string): void {
+    const now = Date.now();
+    const userData = this.roleSwitchTracker.get(userId);
+    const oneDayMs = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+
+    if (!userData || userData.resetAt < now) {
+      // First switch today or reset period passed
+      this.roleSwitchTracker.set(userId, {
+        count: 0,
+        resetAt: now + oneDayMs,
+      });
+      return;
+    }
+
+    if (userData.count >= this.MAX_ROLE_SWITCHES_PER_DAY) {
+      const hoursRemaining = Math.ceil((userData.resetAt - now) / (60 * 60 * 1000));
+      throw new BadRequestException(
+        `Role switch limit reached. You can switch roles again in ${hoursRemaining} hour(s). This limit prevents abuse and helps maintain account security.`
+      );
+    }
+  }
+
+  /**
+   * Track a role switch (increment counter)
+   */
+  private trackRoleSwitch(userId: string): void {
+    const userData = this.roleSwitchTracker.get(userId);
+    if (userData) {
+      userData.count++;
+    }
   }
 }
 

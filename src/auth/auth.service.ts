@@ -743,6 +743,18 @@ export class AuthService {
       refreshToken,
     };
   }
+
+  /**
+   * Generate new tokens for a user (public method for role switching)
+   * 
+   * @param {string} userId - User ID
+   * @param {string} email - User email
+   * @param {string} role - User role
+   * @returns {Object} New access and refresh tokens
+   */
+  generateNewTokens(userId: string, email: string, role: string) {
+    return this.generateTokens(userId, email, role);
+  }
 }
 
 
