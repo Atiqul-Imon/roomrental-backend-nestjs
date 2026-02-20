@@ -73,10 +73,10 @@ export class ChatService {
       },
       include: {
         participant1: { 
-          select: { id: true, name: true, profileImage: true, email: true } 
+          select: { id: true, name: true, profileImage: true } 
         },
         participant2: { 
-          select: { id: true, name: true, profileImage: true, email: true } 
+          select: { id: true, name: true, profileImage: true } 
         },
         listing: {
           select: { id: true, title: true, images: true, price: true }

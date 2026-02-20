@@ -199,7 +199,7 @@ export class ProfileService {
             where: { id: userId },
             select: {
               id: true,
-              email: true,
+              email: userId === currentUserId, // Only include email if viewing own profile
               name: true,
               role: true,
               profileImage: true,
