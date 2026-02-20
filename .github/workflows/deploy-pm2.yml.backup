@@ -1,0 +1,97 @@
+name: Deploy to Digital Ocean
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+      
+      - name: Run tests (if any)
+        run: npm test || true
+        continue-on-error: true
+      
+      - name: Deploy to Digital Ocean
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DROPLET_IP }}
+          username: ${{ secrets.DROPLET_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e  # Exit on error
+            
+            echo "🚀 Starting deployment..."
+            
+            # Add repository to Git safe.directory (fix ownership issue)
+            git config --global --add safe.directory /var/www/roomrental-api
+            
+            # Navigate to application directory
+            cd /var/www/roomrental-api
+            
+            # Pull latest code
+            echo "📥 Pulling latest code..."
+            git fetch origin
+            git reset --hard origin/main || git reset --hard origin/master
+            git clean -fd
+            
+            # Install dependencies
+            echo "📦 Installing dependencies..."
+            npm install --legacy-peer-deps
+            
+            # Generate Prisma Client
+            echo "🔧 Generating Prisma Client..."
+            npx prisma generate
+            
+            # Run database migrations
+            echo "🗄️  Running database migrations..."
+            npx prisma migrate deploy || echo "⚠️  Migration failed, continuing..."
+            
+            # Build application
+            echo "🏗️  Building application..."
+            npm run build
+            
+            # Create logs directory if it doesn't exist
+            mkdir -p logs
+            
+            # Restart PM2 application (as appuser)
+            echo "🔄 Restarting application..."
+            if sudo -u appuser pm2 list | grep -q "roomrental-api"; then
+              sudo -u appuser pm2 restart roomrental-api --update-env
+            else
+              sudo -u appuser pm2 start ecosystem.config.js
+            fi
+            
+            # Save PM2 process list
+            sudo -u appuser pm2 save
+            
+            # Wait a moment for app to start
+            sleep 3
+            
+            # Health check
+            echo "🏥 Checking application health..."
+            if curl -f http://localhost:5000/api/health > /dev/null 2>&1; then
+              echo "✅ Deployment successful! Application is healthy."
+            else
+              echo "⚠️  Health check failed. Check logs: pm2 logs roomrental-api"
+              exit 1
+            fi
+            
+            echo "✅ Deployment complete!"
