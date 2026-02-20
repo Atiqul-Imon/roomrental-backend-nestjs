@@ -26,6 +26,17 @@ export class ProfileController {
     return this.profileService.updateProfile(user.id, updateData);
   }
 
+  @Post('switch-role')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ 
+    summary: 'Switch user role between student and landlord',
+    description: 'Allows users to switch between student and landlord modes. Returns new JWT tokens with updated role. Rate limited to 5 switches per day.',
+  })
+  switchRole(@CurrentUser() user: any, @Body() switchRoleDto: SwitchRoleDto) {
+    return this.profileService.switchRole(user.id, switchRoleDto.newRole);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get user profile by ID' })
   getUserProfile(@Param('id') id: string, @CurrentUser() user: any) {
@@ -36,17 +47,6 @@ export class ProfileController {
   @ApiOperation({ summary: 'Get full profile data including ratings and stats (batch endpoint)' })
   getFullProfileData(@Param('id') id: string, @CurrentUser() user: any) {
     return this.profileService.getFullProfileData(id, user?.id || '');
-  }
-
-  @Post('switch-role')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ 
-    summary: 'Switch user role between student and landlord',
-    description: 'Allows users to switch between student and landlord modes. Returns new JWT tokens with updated role. Rate limited to 5 switches per day.',
-  })
-  switchRole(@CurrentUser() user: any, @Body() switchRoleDto: SwitchRoleDto) {
-    return this.profileService.switchRole(user.id, switchRoleDto.newRole);
   }
 }
 
