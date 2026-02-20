@@ -104,7 +104,6 @@ export class ListingsService {
           select: {
             id: true,
             name: true,
-            email: true,
             profileImage: true,
           },
         },
@@ -545,7 +544,6 @@ export class ListingsService {
               select: {
                 id: true,
                 name: true,
-                email: true,
                 profileImage: true,
                 bio: true,
                 role: true,
@@ -631,7 +629,6 @@ export class ListingsService {
           select: {
             id: true,
             name: true,
-            email: true,
             profileImage: true,
           },
         },
@@ -837,7 +834,6 @@ export class ListingsService {
           select: {
             id: true,
             name: true,
-            email: true,
             profileImage: true,
           },
         },
