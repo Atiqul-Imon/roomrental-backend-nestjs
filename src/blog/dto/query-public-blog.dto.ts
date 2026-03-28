@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 export class QueryPublicBlogDto {
@@ -36,9 +36,15 @@ export class QueryPublicBlogDto {
   @MaxLength(200)
   search?: string;
 
-  @ApiPropertyOptional({ description: 'Only featured posts' })
+  @ApiPropertyOptional({ description: '1 = only featured posts (also accepts true / "1")' })
   @IsOptional()
-  @Type(() => Number)
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '') return undefined;
+    if (value === true || value === 'true' || value === '1' || value === 1) return 1;
+    const n = Number(value);
+    if (Number.isFinite(n) && n >= 1) return 1;
+    return 0;
+  })
   @IsInt()
   @Min(0)
   @Max(1)

@@ -1,21 +1,35 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BlogPostStatus } from '@prisma/client';
+import { Transform } from 'class-transformer';
 import {
+  ArrayMaxSize,
   IsArray,
   IsBoolean,
   IsEnum,
   IsISO8601,
+  IsObject,
   IsOptional,
   IsString,
   IsUUID,
   MaxLength,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
+
+const trimStringArray = (maxLen: number, maxItems: number) =>
+  Transform(({ value }) => {
+    if (!Array.isArray(value)) return value;
+    return value
+      .filter((v): v is string => typeof v === 'string')
+      .map((v) => v.trim().slice(0, maxLen))
+      .filter(Boolean)
+      .slice(0, maxItems);
+  });
 
 export class CreateBlogPostDto {
   @ApiProperty()
   @IsString()
-  @MinLength(3)
+  @MinLength(1)
   @MaxLength(200)
   title!: string;
 
@@ -31,8 +45,9 @@ export class CreateBlogPostDto {
   @MaxLength(600)
   excerpt?: string;
 
-  /** TipTap / ProseMirror JSON document */
+  /** TipTap / ProseMirror JSON document — @IsObject required or ValidationPipe whitelist strips/forbids this field */
   @ApiProperty({ type: 'object', additionalProperties: true })
+  @IsObject()
   contentJson!: Record<string, unknown>;
 
   @ApiProperty({ enum: BlogPostStatus })
@@ -41,16 +56,22 @@ export class CreateBlogPostDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsISO8601()
+  @IsISO8601({ strict: false })
   publishedAt?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsISO8601()
+  @IsISO8601({ strict: false })
   scheduledFor?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
+  @Transform(({ value }) => {
+    if (value === '' || value === undefined) return undefined;
+    if (value === null) return null;
+    return typeof value === 'string' ? value.trim() : value;
+  })
+  @ValidateIf((_, o) => typeof o.categoryId === 'string')
   @IsUUID()
   categoryId?: string | null;
 
@@ -93,7 +114,10 @@ export class CreateBlogPostDto {
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()
   @IsArray()
+  @trimStringArray(200, 50)
+  @ArrayMaxSize(50)
   @IsString({ each: true })
+  @MaxLength(200, { each: true })
   keywords?: string[];
 
   @ApiPropertyOptional()
@@ -115,6 +139,9 @@ export class CreateBlogPostDto {
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()
   @IsArray()
+  @trimStringArray(80, 40)
+  @ArrayMaxSize(40)
   @IsString({ each: true })
+  @MaxLength(80, { each: true })
   tags?: string[];
 }

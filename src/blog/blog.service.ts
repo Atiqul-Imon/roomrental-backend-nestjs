@@ -15,6 +15,7 @@ import { QueryAdminBlogDto } from './dto/query-admin-blog.dto';
 import { CreateBlogCategoryDto } from './dto/create-blog-category.dto';
 import { UpdateBlogCategoryDto } from './dto/update-blog-category.dto';
 import {
+  BlogContentRenderError,
   estimateReadingMinutesFromHtml,
   jsonToSanitizedHtml,
   normalizeContentJson,
@@ -36,6 +37,17 @@ export class BlogService {
     await this.cache.invalidatePattern(`${CACHE_NS}:*`);
   }
 
+  /** Featured filter: DTO normalizes query strings; keep tolerant for tests or non-piped callers */
+  private isFeaturedOnlyQuery(q: QueryPublicBlogDto): boolean {
+    const f = q.featured as unknown;
+    return (
+      q.featured === 1 ||
+      f === true ||
+      f === '1' ||
+      (typeof f === 'string' && f.trim() === '1')
+    );
+  }
+
   private listCacheKey(q: QueryPublicBlogDto): string {
     const payload = JSON.stringify({
       p: q.page ?? 1,
@@ -43,7 +55,7 @@ export class BlogService {
       c: q.category ?? '',
       t: q.tag ?? '',
       s: q.search ?? '',
-      f: q.featured ?? 0,
+      f: this.isFeaturedOnlyQuery(q) ? 1 : 0,
     });
     const hash = createHash('sha1').update(payload).digest('hex').slice(0, 16);
     return `${CACHE_NS}:list:${hash}`;
@@ -89,7 +101,14 @@ export class BlogService {
 
   async syncPostTags(postId: string, tagNames: string[] | undefined) {
     if (!tagNames) return;
-    const unique = [...new Set(tagNames.map((t) => t.trim()).filter(Boolean))];
+    const unique = [
+      ...new Set(
+        tagNames
+          .filter((t): t is string => typeof t === 'string')
+          .map((t) => t.trim())
+          .filter(Boolean),
+      ),
+    ];
     if (unique.length === 0) {
       await this.prisma.blogPost.update({
         where: { id: postId },
@@ -130,7 +149,7 @@ export class BlogService {
     const where: Prisma.BlogPostWhereInput = {
       AND: [
         this.publicVisibilityWhere(now),
-        ...(query.featured === 1 ? [{ isFeatured: true }] : []),
+        ...(this.isFeaturedOnlyQuery(query) ? [{ isFeatured: true }] : []),
         ...(query.category
           ? [{ category: { slug: query.category } }]
           : []),
@@ -166,7 +185,11 @@ export class BlogService {
         where,
         skip,
         take: limit,
-        orderBy: [{ publishedAt: 'desc' }, { scheduledFor: 'desc' }, { createdAt: 'desc' }],
+        orderBy: [
+          { publishedAt: { sort: 'desc', nulls: 'last' } },
+          { scheduledFor: { sort: 'desc', nulls: 'last' } },
+          { createdAt: 'desc' },
+        ],
         select: {
           id: true,
           title: true,
@@ -207,6 +230,9 @@ export class BlogService {
   }
 
   async findPublishedBySlug(slug: string) {
+    const normalized = (slug ?? '').trim();
+    if (!normalized) throw new NotFoundException('Post not found');
+    slug = normalized;
     const cacheKey = `${CACHE_NS}:post:${slug}`;
     const cached = await this.cache.get<unknown>(cacheKey);
     if (cached) return cached;
@@ -324,9 +350,28 @@ export class BlogService {
     return { success: true, data: { post } };
   }
 
+  private mapPrismaFkToBadRequest(e: unknown): void {
+    if (
+      typeof e === 'object' &&
+      e !== null &&
+      'code' in e &&
+      (e as { code: string }).code === 'P2003'
+    ) {
+      throw new BadRequestException('Invalid category or related reference');
+    }
+  }
+
   async adminCreatePost(dto: CreateBlogPostDto, authorId: string) {
     const doc = normalizeContentJson(dto.contentJson);
-    const contentHtml = jsonToSanitizedHtml(doc);
+    let contentHtml: string;
+    try {
+      contentHtml = jsonToSanitizedHtml(doc);
+    } catch (err) {
+      if (err instanceof BlogContentRenderError) {
+        throw new BadRequestException(err.message);
+      }
+      throw err;
+    }
     const readingTimeMinutes = estimateReadingMinutesFromHtml(contentHtml);
 
     let baseSlug = dto.slug?.trim()
@@ -346,31 +391,37 @@ export class BlogService {
     }
     const scheduledFor = dto.scheduledFor ? new Date(dto.scheduledFor) : null;
 
-    const post = await this.prisma.blogPost.create({
-      data: {
-        title: dto.title.trim(),
-        slug: baseSlug,
-        excerpt: dto.excerpt?.trim() || null,
-        contentJson: doc as unknown as Prisma.InputJsonValue,
-        contentHtml,
-        status: dto.status,
-        publishedAt,
-        scheduledFor,
-        authorId,
-        categoryId: dto.categoryId ?? null,
-        coverImageUrl: dto.coverImageUrl ?? null,
-        readingTimeMinutes,
-        metaTitle: dto.metaTitle?.trim() || null,
-        metaDescription: dto.metaDescription?.trim() || null,
-        canonicalUrl: dto.canonicalUrl?.trim() || null,
-        ogImageUrl: dto.ogImageUrl?.trim() || null,
-        focusKeyword: dto.focusKeyword?.trim() || null,
-        keywords: dto.keywords?.length ? dto.keywords : [],
-        robotsIndex: dto.robotsIndex ?? true,
-        robotsFollow: dto.robotsFollow ?? true,
-        isFeatured: dto.isFeatured ?? false,
-      },
-    });
+    let post;
+    try {
+      post = await this.prisma.blogPost.create({
+        data: {
+          title: dto.title.trim(),
+          slug: baseSlug,
+          excerpt: dto.excerpt?.trim() || null,
+          contentJson: doc as unknown as Prisma.InputJsonValue,
+          contentHtml,
+          status: dto.status,
+          publishedAt,
+          scheduledFor,
+          authorId,
+          categoryId: dto.categoryId ?? null,
+          coverImageUrl: dto.coverImageUrl ?? null,
+          readingTimeMinutes,
+          metaTitle: dto.metaTitle?.trim() || null,
+          metaDescription: dto.metaDescription?.trim() || null,
+          canonicalUrl: dto.canonicalUrl?.trim() || null,
+          ogImageUrl: dto.ogImageUrl?.trim() || null,
+          focusKeyword: dto.focusKeyword?.trim() || null,
+          keywords: dto.keywords?.length ? dto.keywords : [],
+          robotsIndex: dto.robotsIndex ?? true,
+          robotsFollow: dto.robotsFollow ?? true,
+          isFeatured: dto.isFeatured ?? false,
+        },
+      });
+    } catch (e) {
+      this.mapPrismaFkToBadRequest(e);
+      throw e;
+    }
 
     await this.syncPostTags(post.id, dto.tags);
     await this.bumpBlogCache();
@@ -389,7 +440,14 @@ export class BlogService {
     if (dto.contentJson !== undefined) {
       const doc = normalizeContentJson(dto.contentJson);
       contentJson = doc as unknown as Prisma.JsonValue;
-      contentHtml = jsonToSanitizedHtml(doc);
+      try {
+        contentHtml = jsonToSanitizedHtml(doc);
+      } catch (err) {
+        if (err instanceof BlogContentRenderError) {
+          throw new BadRequestException(err.message);
+        }
+        throw err;
+      }
       readingTimeMinutes = estimateReadingMinutesFromHtml(contentHtml);
     }
 
@@ -419,33 +477,50 @@ export class BlogService {
       throw new BadRequestException('scheduledFor is required when status is scheduled');
     }
 
-    const updated = await this.prisma.blogPost.update({
-      where: { id },
-      data: {
-        ...(dto.title !== undefined ? { title: dto.title.trim() } : {}),
-        slug,
-        ...(dto.excerpt !== undefined ? { excerpt: dto.excerpt?.trim() || null } : {}),
-        contentJson: contentJson as Prisma.InputJsonValue,
-        contentHtml,
-        readingTimeMinutes,
-        ...(dto.status !== undefined ? { status: dto.status } : {}),
-        publishedAt,
-        scheduledFor,
-        ...(dto.categoryId !== undefined ? { categoryId: dto.categoryId } : {}),
-        ...(dto.coverImageUrl !== undefined ? { coverImageUrl: dto.coverImageUrl } : {}),
-        ...(dto.metaTitle !== undefined ? { metaTitle: dto.metaTitle?.trim() || null } : {}),
-        ...(dto.metaDescription !== undefined
-          ? { metaDescription: dto.metaDescription?.trim() || null }
-          : {}),
-        ...(dto.canonicalUrl !== undefined ? { canonicalUrl: dto.canonicalUrl?.trim() || null } : {}),
-        ...(dto.ogImageUrl !== undefined ? { ogImageUrl: dto.ogImageUrl?.trim() || null } : {}),
-        ...(dto.focusKeyword !== undefined ? { focusKeyword: dto.focusKeyword?.trim() || null } : {}),
-        ...(dto.keywords !== undefined ? { keywords: dto.keywords } : {}),
-        ...(dto.robotsIndex !== undefined ? { robotsIndex: dto.robotsIndex } : {}),
-        ...(dto.robotsFollow !== undefined ? { robotsFollow: dto.robotsFollow } : {}),
-        ...(dto.isFeatured !== undefined ? { isFeatured: dto.isFeatured } : {}),
-      },
-    });
+    const categoryPatch =
+      dto.categoryId !== undefined
+        ? {
+            categoryId:
+              dto.categoryId === null ||
+              (typeof dto.categoryId === 'string' && dto.categoryId.trim() === '')
+                ? null
+                : dto.categoryId,
+          }
+        : {};
+
+    let updated;
+    try {
+      updated = await this.prisma.blogPost.update({
+        where: { id },
+        data: {
+          ...(dto.title !== undefined ? { title: dto.title.trim() } : {}),
+          slug,
+          ...(dto.excerpt !== undefined ? { excerpt: dto.excerpt?.trim() || null } : {}),
+          contentJson: contentJson as Prisma.InputJsonValue,
+          contentHtml,
+          readingTimeMinutes,
+          ...(dto.status !== undefined ? { status: dto.status } : {}),
+          publishedAt,
+          scheduledFor,
+          ...categoryPatch,
+          ...(dto.coverImageUrl !== undefined ? { coverImageUrl: dto.coverImageUrl } : {}),
+          ...(dto.metaTitle !== undefined ? { metaTitle: dto.metaTitle?.trim() || null } : {}),
+          ...(dto.metaDescription !== undefined
+            ? { metaDescription: dto.metaDescription?.trim() || null }
+            : {}),
+          ...(dto.canonicalUrl !== undefined ? { canonicalUrl: dto.canonicalUrl?.trim() || null } : {}),
+          ...(dto.ogImageUrl !== undefined ? { ogImageUrl: dto.ogImageUrl?.trim() || null } : {}),
+          ...(dto.focusKeyword !== undefined ? { focusKeyword: dto.focusKeyword?.trim() || null } : {}),
+          ...(dto.keywords !== undefined ? { keywords: dto.keywords } : {}),
+          ...(dto.robotsIndex !== undefined ? { robotsIndex: dto.robotsIndex } : {}),
+          ...(dto.robotsFollow !== undefined ? { robotsFollow: dto.robotsFollow } : {}),
+          ...(dto.isFeatured !== undefined ? { isFeatured: dto.isFeatured } : {}),
+        },
+      });
+    } catch (e) {
+      this.mapPrismaFkToBadRequest(e);
+      throw e;
+    }
 
     if (dto.tags !== undefined) {
       await this.syncPostTags(id, dto.tags);
@@ -512,6 +587,9 @@ export class BlogService {
   }
 
   async adminUpdateCategory(id: string, dto: UpdateBlogCategoryDto) {
+    const existing = await this.prisma.blogCategory.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Category not found');
+
     const data: Prisma.BlogCategoryUpdateInput = {};
     if (dto.name !== undefined) data.name = dto.name.trim();
     if (dto.description !== undefined) data.description = dto.description?.trim() || null;
@@ -520,6 +598,9 @@ export class BlogService {
         slugify(dto.slug.trim(), { lower: true, strict: true }),
         id,
       );
+    }
+    if (Object.keys(data).length === 0) {
+      return { success: true, data: { category: existing } };
     }
     const cat = await this.prisma.blogCategory.update({ where: { id }, data });
     await this.bumpBlogCache();
