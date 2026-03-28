@@ -5,9 +5,12 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// Runtime: pooled URL (e.g. Supabase :6543) should include ?pgbouncer=true
+// Migrations: Prisma uses directUrl (non-pooled :5432) to avoid "prepared statement already exists"
 datasource db {
   provider          = "postgresql"
   url               = env("DATABASE_URL")
+  directUrl         = env("DIRECT_URL")
   shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
@@ -55,6 +58,13 @@ enum GenderPreference {
   any
 }
 
+enum BlogPostStatus {
+  draft
+  scheduled
+  published
+  archived
+}
+
 model User {
   id            String             @id @default(uuid())
   email         String             @unique
@@ -85,8 +95,74 @@ model User {
   sentMessages                Message[]       @relation("MessageSender")
   savedSearches               SavedSearch[]
   searchHistory               SearchHistory[]
+  blogPosts                   BlogPost[]
 
   @@map("users")
+}
+
+model BlogCategory {
+  id          String     @id @default(uuid())
+  name        String
+  slug        String     @unique
+  description String?    @db.Text
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  posts       BlogPost[]
+
+  @@index([slug])
+  @@map("blog_categories")
+}
+
+model BlogTag {
+  id        String     @id @default(uuid())
+  name      String
+  slug      String     @unique
+  createdAt DateTime   @default(now())
+  posts     BlogPost[]
+
+  @@index([slug])
+  @@map("blog_tags")
+}
+
+model BlogPost {
+  id                 String         @id @default(uuid())
+  title              String
+  slug               String         @unique
+  excerpt            String?        @db.Text
+  contentJson        Json
+  contentHtml        String         @db.Text
+  status             BlogPostStatus @default(draft)
+  publishedAt        DateTime?
+  scheduledFor       DateTime?
+  authorId           String
+  categoryId         String?
+  coverImageUrl      String?
+  readingTimeMinutes Int            @default(0)
+  metaTitle          String?
+  metaDescription    String?        @db.Text
+  canonicalUrl       String?
+  ogImageUrl         String?
+  focusKeyword       String?
+  keywords           String[]
+  robotsIndex        Boolean        @default(true)
+  robotsFollow       Boolean        @default(true)
+  isFeatured         Boolean        @default(false)
+  viewCount          Int            @default(0)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  author   User          @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  category BlogCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  tags     BlogTag[]
+
+  @@index([slug])
+  @@index([status, publishedAt])
+  @@index([status, scheduledFor])
+  @@index([categoryId])
+  @@index([authorId])
+  @@index([isFeatured, publishedAt])
+  @@index([createdAt])
+  @@map("blog_posts")
 }
 
 model Listing {
