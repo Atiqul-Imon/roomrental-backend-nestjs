@@ -17,6 +17,7 @@ import { SocketModule } from './socket/socket.module';
 import { ChatModule } from './chat/chat.module';
 import { SavedSearchesModule } from './saved-searches/saved-searches.module';
 import { SearchHistoryModule } from './search-history/search-history.module';
+import { BlogModule } from './blog/blog.module';
 import { validateEnv } from './config/env.validation';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
 import { LoggerModule } from './common/logger/logger.module';
@@ -77,6 +78,7 @@ import { LoggerModule } from './common/logger/logger.module';
     ChatModule,
     SavedSearchesModule,
     SearchHistoryModule,
+    BlogModule,
   ],
 })
 export class AppModule implements NestModule {

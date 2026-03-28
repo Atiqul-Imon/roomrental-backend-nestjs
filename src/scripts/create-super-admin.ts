@@ -1,8 +1,22 @@
 import { PrismaClient } from '@prisma/client';
 import * as argon2 from 'argon2';
-import * as bcrypt from 'bcrypt';
 
-const prisma = new PrismaClient();
+/** PgBouncer (e.g. Supabase :6543 pooler) needs prepared statements disabled */
+function resolveDatabaseUrl(): string {
+  const direct = process.env.DIRECT_URL;
+  if (direct?.trim()) return direct.trim();
+  const url = process.env.DATABASE_URL || '';
+  if (!url) return url;
+  if (url.includes('pgbouncer=true')) return url;
+  if (url.includes('pooler.') || url.includes(':6543')) {
+    return url.includes('?') ? `${url}&pgbouncer=true` : `${url}?pgbouncer=true`;
+  }
+  return url;
+}
+
+const prisma = new PrismaClient({
+  datasources: { db: { url: resolveDatabaseUrl() } },
+});
 
 // Simple credentials
 const ADMIN_EMAIL = 'admin@roomrental.com';
