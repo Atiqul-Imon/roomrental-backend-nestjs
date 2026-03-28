@@ -5,6 +5,14 @@ import Underline from '@tiptap/extension-underline';
 import type { JSONContent } from '@tiptap/core';
 import sanitizeHtml from 'sanitize-html';
 
+/** Thrown when TipTap HTML generation or sanitization fails — map to HTTP 400 in the service */
+export class BlogContentRenderError extends Error {
+  constructor(message = 'Invalid rich text content') {
+    super(message);
+    this.name = 'BlogContentRenderError';
+  }
+}
+
 /** CJS require: default `@tiptap/html` bundle throws in Node; server build does not */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { generateHTML, generateJSON } = require('@tiptap/html/server') as {
@@ -28,7 +36,7 @@ const extensions = [
 
 const SANITIZE: sanitizeHtml.IOptions = {
   allowedTags: [
-    ...sanitizeHtml.defaults.allowedTags,
+    ...(sanitizeHtml.defaults?.allowedTags ?? []),
     'img',
     'h1',
     'h2',
@@ -44,7 +52,7 @@ const SANITIZE: sanitizeHtml.IOptions = {
     'sub',
   ],
   allowedAttributes: {
-    ...sanitizeHtml.defaults.allowedAttributes,
+    ...(sanitizeHtml.defaults?.allowedAttributes ?? {}),
     img: ['src', 'alt', 'title', 'width', 'height', 'loading', 'decoding', 'class'],
     a: ['href', 'name', 'target', 'rel', 'class'],
     code: ['class'],
@@ -71,18 +79,36 @@ export function normalizeContentJson(input: unknown): JSONContent {
 }
 
 export function jsonToSanitizedHtml(doc: JSONContent): string {
-  const raw = generateHTML(doc, extensions);
-  return sanitizeHtml(raw, SANITIZE);
+  let raw: string;
+  try {
+    raw = generateHTML(doc, extensions);
+  } catch {
+    throw new BlogContentRenderError();
+  }
+  try {
+    return sanitizeHtml(raw, SANITIZE);
+  } catch {
+    throw new BlogContentRenderError('Content could not be sanitized');
+  }
 }
 
 export function htmlToJson(html: string): JSONContent {
   const trimmed = (html || '').trim();
   if (!trimmed) return defaultTiptapDoc();
-  return generateJSON(trimmed, extensions) as JSONContent;
+  try {
+    return generateJSON(trimmed, extensions) as JSONContent;
+  } catch {
+    return defaultTiptapDoc();
+  }
 }
 
 export function estimateReadingMinutesFromHtml(html: string): number {
-  const text = sanitizeHtml(html, { allowedTags: [], allowedAttributes: {} });
+  let text = '';
+  try {
+    text = sanitizeHtml(html, { allowedTags: [], allowedAttributes: {} });
+  } catch {
+    return 1;
+  }
   const words = text.trim().split(/\s+/).filter(Boolean).length;
   return Math.max(1, Math.round(words / 200));
 }
