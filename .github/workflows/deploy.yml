@@ -135,10 +135,11 @@ jobs:
             $DC -f docker-compose.prod.yml pull api
 
             echo "🗄️ Running migrations (one-off container)..."
+            # Use bundled Prisma CLI (./node_modules/.bin/prisma). Plain `npx prisma` can fetch Prisma 7+ and break a v6 schema.
             docker run --rm \
               --env-file .env \
               "$DEPLOY_IMAGE" \
-              sh -c "npx prisma migrate deploy"
+              sh -c "cd /app && ./node_modules/.bin/prisma migrate deploy"
 
             echo "🚀 Recreating API container..."
             # Prefer Compose wait (uses service healthcheck); fallback to curl loop on older Compose.
