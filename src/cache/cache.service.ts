@@ -151,7 +151,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
       const keysToDelete: string[] = [];
       const pipeline = this.client.pipeline();
 
-      return new Promise<number>((resolve, reject) => {
+      return new Promise<number>((resolve) => {
         stream.on('data', (keys: string[]) => {
           keys.forEach((key) => {
             pipeline.del(key);
@@ -169,13 +169,13 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
             resolve(deletedCount);
           } catch (error) {
             this.logger.error(`Error executing pipeline delete: ${error instanceof Error ? error.message : String(error)}`);
-            reject(error);
+            resolve(0);
           }
         });
 
         stream.on('error', (error) => {
           this.logger.error(`Error scanning keys: ${error.message}`);
-          reject(error);
+          resolve(0);
         });
       });
     } catch (error) {
