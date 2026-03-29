@@ -27,10 +27,10 @@ else
     exit 1
 fi
 
-# Check Node.js version
+# Check Node.js version (align with Dockerfile / .nvmrc — Node 24 LTS)
 NODE_VERSION=$(node -v | cut -d'v' -f2 | cut -d'.' -f1)
-if [ "$NODE_VERSION" -lt 18 ]; then
-    echo -e "${RED}Error: Node.js 18+ required. Current version: $(node -v)${NC}"
+if [ "$NODE_VERSION" -lt 24 ]; then
+    echo -e "${RED}Error: Node.js 24+ required. Current version: $(node -v)${NC}"
     exit 1
 fi
 
