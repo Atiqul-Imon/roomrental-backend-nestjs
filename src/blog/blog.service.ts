@@ -4,6 +4,7 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { BlogPostStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
@@ -361,7 +362,8 @@ export class BlogService {
 
   private mapPrismaToHttp(e: unknown): void {
     if (typeof e !== 'object' || e === null || !('code' in e)) return;
-    const code = (e as { code: string }).code;
+    const err = e as { code: string; meta?: { modelName?: string; table?: string } };
+    const code = err.code;
     if (code === 'P2003') {
       throw new BadRequestException('Invalid category or related reference');
     }
@@ -369,6 +371,15 @@ export class BlogService {
       const meta = e as { meta?: { target?: string[] } };
       const target = meta.meta?.target?.join(', ') ?? 'record';
       throw new ConflictException(`A ${target} with this value already exists`);
+    }
+    // Table/relation missing — production DB often missing blog migration
+    if (code === 'P2021') {
+      this.logger.error(
+        `Blog Prisma ${code}: ${err.meta?.modelName ?? err.meta?.table ?? 'table'} — run prisma migrate deploy`,
+      );
+      throw new ServiceUnavailableException(
+        'Blog tables are not in this database. Deploy migrations (e.g. prisma migrate deploy) for the blog feature.',
+      );
     }
   }
 
@@ -441,7 +452,12 @@ export class BlogService {
       throw e;
     }
 
-    await this.syncPostTags(post.id, dto.tags);
+    try {
+      await this.syncPostTags(post.id, dto.tags);
+    } catch (e) {
+      this.mapPrismaToHttp(e);
+      throw e;
+    }
     await this.bumpBlogCache();
 
     return this.adminGetPost(post.id);
@@ -564,11 +580,16 @@ export class BlogService {
   // Categories admin + used by editor
 
   async adminListCategories() {
-    const categories = await this.prisma.blogCategory.findMany({
-      orderBy: { name: 'asc' },
-      include: { _count: { select: { posts: true } } },
-    });
-    return { success: true, data: { categories } };
+    try {
+      const categories = await this.prisma.blogCategory.findMany({
+        orderBy: { name: 'asc' },
+        include: { _count: { select: { posts: true } } },
+      });
+      return { success: true, data: { categories } };
+    } catch (e) {
+      this.mapPrismaToHttp(e);
+      throw e;
+    }
   }
 
   async adminCreateCategory(dto: CreateBlogCategoryDto) {

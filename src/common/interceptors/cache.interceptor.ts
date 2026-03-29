@@ -24,11 +24,13 @@ export class CacheInterceptor implements NestInterceptor {
     let maxAge: number;
     let sMaxAge: number;
 
-    // Static data - long cache (1 hour)
+    // Static data - long cache (1 hour) — do not match /api/admin/* or /api/blog/* "categories" paths
+    const isAdminOrBlogApi = url.includes('/admin/') || url.includes('/blog/');
     if (
-      url.includes('/amenities') ||
-      url.includes('/categories') ||
-      url.includes('/locations')
+      !isAdminOrBlogApi &&
+      (url.includes('/amenities') ||
+        url.includes('/categories') ||
+        url.includes('/locations'))
     ) {
       maxAge = 3600; // 1 hour
       sMaxAge = 7200; // 2 hours (CDN)
