@@ -43,8 +43,15 @@ export class BlogAdminController {
 
   @Post('posts')
   @ApiOperation({ summary: 'Create post' })
-  adminCreate(@Body() dto: CreateBlogPostDto, @CurrentUser() user: { id: string }) {
-    return this.blogService.adminCreatePost(dto, user.id);
+  adminCreate(
+    @Body() dto: CreateBlogPostDto,
+    @CurrentUser() user: { id: string; email: string; name?: string | null },
+  ) {
+    return this.blogService.adminCreatePost(dto, user.id, {
+      id: user.id,
+      email: user.email,
+      name: user.name ?? null,
+    });
   }
 
   @Patch('posts/:id')
@@ -52,8 +59,13 @@ export class BlogAdminController {
   adminUpdate(
     @Param('id') id: string,
     @Body() dto: UpdateBlogPostDto,
+    @CurrentUser() user: { id: string; email: string; name?: string | null },
   ) {
-    return this.blogService.adminUpdatePost(id, dto);
+    return this.blogService.adminUpdatePost(id, dto, {
+      id: user.id,
+      email: user.email,
+      name: user.name ?? null,
+    });
   }
 
   @Delete('posts/:id')
