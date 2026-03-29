@@ -432,7 +432,7 @@ netstat -tulpn | grep 5000
 ## Security Best Practices
 
 1. **Non-root user**: Dockerfile uses non-root user `nestjs`
-2. **Minimal base image**: Using `node:20-alpine` (small, secure)
+2. **Minimal base image**: Using `node:24-alpine` (small, secure, Node 24 LTS)
 3. **Multi-stage build**: Separates build and runtime environments
 4. **No secrets in image**: All secrets via `.env` file
 5. **Log rotation**: JSON log driver with size limits

@@ -4,8 +4,9 @@ services:
     image: ${ROOMRENTAL_API_IMAGE}
     container_name: roomrental-api
     restart: unless-stopped
+    # Bind to loopback only — nginx on the host proxies TLS; avoids exposing the API past the reverse proxy.
     ports:
-      - "5000:5000"
+      - "127.0.0.1:5000:5000"
     env_file:
       - .env
     volumes:

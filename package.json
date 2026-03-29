@@ -5,6 +5,10 @@
   "author": "",
   "private": true,
   "license": "ISC",
+  "engines": {
+    "node": ">=24.0.0",
+    "npm": ">=10.0.0"
+  },
   "scripts": {
     "clean": "rm -rf dist *.tsbuildinfo **/*.tsbuildinfo",
     "build": "nest build",
