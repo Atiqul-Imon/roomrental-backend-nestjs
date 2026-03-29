@@ -1,8 +1,10 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
 import compression from 'compression';
+import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -11,11 +13,17 @@ import { CacheInterceptor } from './common/interceptors/cache.interceptor';
 import { logger } from './common/utils/logger';
 import { AppLogger } from './common/logger/logger.service';
 
+const JSON_BODY_LIMIT = process.env.BODY_JSON_LIMIT || '10mb';
+
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: false, // Disable default NestJS logger, we'll use our own
+    bodyParser: false, // Use custom limits (default 100kb breaks large TipTap documents)
   });
-  
+
+  app.use(json({ limit: JSON_BODY_LIMIT }));
+  app.use(urlencoded({ extended: true, limit: JSON_BODY_LIMIT }));
+
   // Use Winston logger for NestJS
   const appLogger = app.get(AppLogger);
   app.useLogger(appLogger);
