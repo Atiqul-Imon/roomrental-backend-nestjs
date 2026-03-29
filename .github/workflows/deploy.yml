@@ -22,6 +22,9 @@ jobs:
           host: ${{ secrets.DROPLET_IP }}
           username: ${{ secrets.DROPLET_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          # Default command_timeout is 10m; Docker build + nest build on a small droplet often exceeds that.
+          command_timeout: 45m
+          timeout: 2m
           script: |
             set -e
             
@@ -39,7 +42,7 @@ jobs:
             
             # Stop and remove old PM2 processes if they exist
             echo "🛑 Stopping PM2 (if running)..."
-            pm2 delete roomrental-api || true
+            pm2 delete roomrental-api 2>/dev/null || true
             pm2 save || true
             
             # Install Docker if not present
