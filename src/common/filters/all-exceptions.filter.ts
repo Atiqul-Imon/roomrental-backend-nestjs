@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { mapPrismaClientError } from '../utils/prisma-error.mapper';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -17,22 +18,31 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
-    let status =
-      exception instanceof HttpException
-        ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
-
-    let message: string | object =
-      exception instanceof HttpException
-        ? exception.getResponse()
-        : 'Internal server error';
-
     // express/body-parser: payload too large (default was 100kb; blog JSON can exceed it)
     const ext = exception as { type?: string; status?: number; statusCode?: number };
+    let entityTooLarge = false;
     if (ext?.type === 'entity.too.large') {
+      entityTooLarge = true;
+    }
+
+    const prismaMapped = !entityTooLarge ? mapPrismaClientError(exception) : null;
+
+    let status: number;
+    let message: string | object;
+
+    if (entityTooLarge) {
       status = HttpStatus.PAYLOAD_TOO_LARGE;
       message =
         'Request body too large. For long articles the API allows up to BODY_JSON_LIMIT (default 10mb).';
+    } else if (exception instanceof HttpException) {
+      status = exception.getStatus();
+      message = exception.getResponse();
+    } else if (prismaMapped) {
+      status = prismaMapped.status;
+      message = prismaMapped.message;
+    } else {
+      status = HttpStatus.INTERNAL_SERVER_ERROR;
+      message = 'Internal server error';
     }
 
     let messageStr =
@@ -42,15 +52,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
           ? ((message as { message: string[] }).message || []).join('; ')
           : (message as { message?: string }).message || 'An error occurred';
 
-    // Surface Prisma client codes in the JSON body (logged always; helps production debugging)
-    const prismaCode =
+    // Prisma codes: prefer structured mapper; else raw P* on unknown errors
+    let prismaCode = prismaMapped?.prismaCode;
+    if (
+      !prismaCode &&
       exception &&
       typeof exception === 'object' &&
       'code' in exception &&
-      typeof (exception as { code: unknown }).code === 'string' &&
-      (exception as { code: string }).code.startsWith('P')
-        ? (exception as { code: string }).code
-        : undefined;
+      typeof (exception as { code: unknown }).code === 'string'
+    ) {
+      const c = (exception as { code: string }).code;
+      if (c.startsWith('P')) prismaCode = c;
+    }
 
     const errorResponse = {
       success: false,

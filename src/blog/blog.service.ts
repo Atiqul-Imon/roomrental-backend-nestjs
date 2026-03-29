@@ -457,11 +457,15 @@ export class BlogService {
       throw e;
     }
 
-    try {
-      await this.syncPostTags(post.id, dto.tags);
-    } catch (e) {
-      this.mapPrismaToHttp(e);
-      throw e;
+    // New posts start with zero tags; skip UPDATE when tags is [] — avoids extra query and
+    // edge cases if the tag join table or permissions differ from blog_posts.
+    if (dto.tags !== undefined && dto.tags.length > 0) {
+      try {
+        await this.syncPostTags(post.id, dto.tags);
+      } catch (e) {
+        this.mapPrismaToHttp(e);
+        throw e;
+      }
     }
     await this.bumpBlogCache();
 
