@@ -1,6 +1,7 @@
+# Image is built in GitHub Actions and pushed to GHCR. Deploy sets ROOMRENTAL_API_IMAGE (see workflow).
 services:
   api:
-    image: roomrental-api:latest
+    image: ${ROOMRENTAL_API_IMAGE}
     container_name: roomrental-api
     restart: unless-stopped
     ports:
