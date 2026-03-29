@@ -14,6 +14,30 @@ export function mapPrismaClientError(exception: unknown): {
     };
   }
 
+  if (exception instanceof Prisma.PrismaClientInitializationError) {
+    return {
+      status: 503,
+      message: 'Database client failed to initialize',
+      prismaCode: 'INIT',
+    };
+  }
+
+  if (exception instanceof Prisma.PrismaClientUnknownRequestError) {
+    return {
+      status: 503,
+      message: 'Database request failed',
+      prismaCode: 'UNKNOWN',
+    };
+  }
+
+  if (exception instanceof Prisma.PrismaClientRustPanicError) {
+    return {
+      status: 503,
+      message: 'Database engine error',
+      prismaCode: 'RUST_PANIC',
+    };
+  }
+
   if (exception instanceof Prisma.PrismaClientKnownRequestError) {
     const code = exception.code;
     switch (code) {
