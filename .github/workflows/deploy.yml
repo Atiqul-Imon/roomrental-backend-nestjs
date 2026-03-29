@@ -125,6 +125,17 @@ jobs:
 
             mkdir -p logs
 
+            if [ ! -f .env ]; then
+              echo "❌ Missing /var/www/roomrental-api/.env — create it from .env.example"
+              exit 1
+            fi
+            for key in DATABASE_URL DIRECT_URL; do
+              if ! grep -qE "^[[:space:]]*${key}[[:space:]]*=" .env; then
+                echo "❌ .env must define ${key}. Prisma needs DIRECT_URL = direct Postgres URL (e.g. Supabase session pooler :5432), not the transaction pooler. See .env.example"
+                exit 1
+              fi
+            done
+
             echo "🔐 Logging in to GHCR..."
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
 
