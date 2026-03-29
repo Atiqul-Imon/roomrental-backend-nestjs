@@ -24,6 +24,16 @@ export class CacheInterceptor implements NestInterceptor {
     let maxAge: number;
     let sMaxAge: number;
 
+    // Authenticated admin JSON must not be cached by browsers (stale lists after mutations)
+    if (url.includes('/admin/')) {
+      cacheControl = 'private, no-store, must-revalidate';
+      return next.handle().pipe(
+        tap(() => {
+          response.setHeader('Cache-Control', cacheControl);
+        }),
+      );
+    }
+
     // Static data - long cache (1 hour) — do not match /api/admin/* or /api/blog/* "categories" paths
     const isAdminOrBlogApi = url.includes('/admin/') || url.includes('/blog/');
     if (

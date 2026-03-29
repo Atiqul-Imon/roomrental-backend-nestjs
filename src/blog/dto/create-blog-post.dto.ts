@@ -71,7 +71,7 @@ export class CreateBlogPostDto {
     if (value === null) return null;
     return typeof value === 'string' ? value.trim() : value;
   })
-  @ValidateIf((_, o) => typeof o.categoryId === 'string')
+  @ValidateIf((_object, value) => typeof value === 'string' && value.length > 0)
   @IsUUID()
   categoryId?: string | null;
 

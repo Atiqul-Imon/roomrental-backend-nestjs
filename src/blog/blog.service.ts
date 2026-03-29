@@ -275,6 +275,7 @@ export class BlogService {
     const cached = await this.cache.get<unknown>(cacheKey);
     if (cached) return cached;
 
+    const now = new Date();
     const categories = await this.prisma.blogCategory.findMany({
       orderBy: { name: 'asc' },
       select: {
@@ -282,7 +283,12 @@ export class BlogService {
         name: true,
         slug: true,
         description: true,
-        _count: { select: { posts: true } },
+        // Count only posts visible on /blog (matches findPublishedPosts category filter)
+        _count: {
+          select: {
+            posts: { where: this.publicVisibilityWhere(now) },
+          },
+        },
       },
     });
 
@@ -417,7 +423,7 @@ export class BlogService {
       }
 
       let category: BlogCategory | null = null;
-      if (row.categoryId) {
+      if (row?.categoryId) {
         try {
           category = await this.prisma.blogCategory.findUnique({
             where: { id: row.categoryId },
