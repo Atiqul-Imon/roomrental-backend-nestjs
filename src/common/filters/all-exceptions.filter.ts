@@ -7,7 +7,23 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { randomUUID } from 'crypto';
 import { mapPrismaClientError } from '../utils/prisma-error.mapper';
+
+const UNKNOWN_ERROR_MSG_MAX = 900;
+
+function messageForUnhandledException(exception: unknown): string {
+  if (process.env.API_GENERIC_ERRORS === '1') {
+    return 'Internal server error';
+  }
+  if (exception instanceof Error && exception.message?.trim()) {
+    return exception.message.trim().slice(0, UNKNOWN_ERROR_MSG_MAX);
+  }
+  if (typeof exception === 'string' && exception.trim()) {
+    return exception.trim().slice(0, UNKNOWN_ERROR_MSG_MAX);
+  }
+  return 'Internal server error';
+}
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -42,7 +58,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
       message = prismaMapped.message;
     } else {
       status = HttpStatus.INTERNAL_SERVER_ERROR;
-      message = 'Internal server error';
+      // Previously this was always "Internal server error", which hides the real bug in the client.
+      // Prisma / validation are mapped above; here we surface Error.message unless API_GENERIC_ERRORS=1.
+      message = messageForUnhandledException(exception);
     }
 
     let messageStr =
@@ -65,17 +83,27 @@ export class AllExceptionsFilter implements ExceptionFilter {
       if (c.startsWith('P')) prismaCode = c;
     }
 
+    const errorRef = status >= HttpStatus.INTERNAL_SERVER_ERROR ? randomUUID() : undefined;
+
     const errorResponse = {
       success: false,
       statusCode: status,
       timestamp: new Date().toISOString(),
       path: request.url,
       message: messageStr,
+      ...(errorRef ? { errorRef } : {}),
       ...(prismaCode ? { prismaCode } : {}),
+      ...(!prismaMapped &&
+      exception instanceof Error &&
+      exception.name &&
+      status >= HttpStatus.INTERNAL_SERVER_ERROR &&
+      process.env.API_GENERIC_ERRORS !== '1'
+        ? { errorName: exception.name }
+        : {}),
     };
 
     this.logger.error(
-      `${request.method} ${request.url}`,
+      `[${errorRef ?? 'no-ref'}] ${request.method} ${request.url}`,
       exception instanceof Error ? exception.stack : JSON.stringify(exception),
     );
 
