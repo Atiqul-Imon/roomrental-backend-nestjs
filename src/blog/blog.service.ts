@@ -17,10 +17,8 @@ import { QueryAdminBlogDto } from './dto/query-admin-blog.dto';
 import { CreateBlogCategoryDto } from './dto/create-blog-category.dto';
 import { UpdateBlogCategoryDto } from './dto/update-blog-category.dto';
 import {
-  BlogContentRenderError,
-  estimateReadingMinutesFromHtml,
-  jsonToSanitizedHtml,
   normalizeContentJson,
+  renderBlogHtmlWithFallback,
 } from './blog-html.util';
 import { createHash } from 'crypto';
 
@@ -386,25 +384,15 @@ export class BlogService {
     }
   }
 
-  private isBlogRenderError(err: unknown): boolean {
-    return (
-      err instanceof BlogContentRenderError ||
-      (err instanceof Error && err.name === 'BlogContentRenderError')
-    );
-  }
-
   async adminCreatePost(dto: CreateBlogPostDto, authorId: string) {
     const doc = normalizeContentJson(dto.contentJson);
-    let contentHtml: string;
-    try {
-      contentHtml = jsonToSanitizedHtml(doc);
-    } catch (err) {
-      if (this.isBlogRenderError(err)) {
-        throw new BadRequestException(err instanceof Error ? err.message : 'Invalid rich text content');
-      }
-      throw err;
+    const rendered = renderBlogHtmlWithFallback(doc);
+    if (rendered.usedFallback) {
+      this.logger.warn(
+        'Blog create: TipTap HTML render failed; stored plain-text fallback (contentJson is unchanged)',
+      );
     }
-    const readingTimeMinutes = estimateReadingMinutesFromHtml(contentHtml);
+    const { html: contentHtml, readingTimeMinutes } = rendered;
 
     let baseSlug = dto.slug?.trim()
       ? slugify(dto.slug.trim(), { lower: true, strict: true })
@@ -483,15 +471,14 @@ export class BlogService {
     if (dto.contentJson !== undefined) {
       const doc = normalizeContentJson(dto.contentJson);
       contentJson = doc as unknown as Prisma.JsonValue;
-      try {
-        contentHtml = jsonToSanitizedHtml(doc);
-      } catch (err) {
-        if (this.isBlogRenderError(err)) {
-          throw new BadRequestException(err instanceof Error ? err.message : 'Invalid rich text content');
-        }
-        throw err;
+      const rendered = renderBlogHtmlWithFallback(doc);
+      if (rendered.usedFallback) {
+        this.logger.warn(
+          `Blog update ${id}: TipTap HTML render failed; stored plain-text fallback (contentJson is unchanged)`,
+        );
       }
-      readingTimeMinutes = estimateReadingMinutesFromHtml(contentHtml);
+      contentHtml = rendered.html;
+      readingTimeMinutes = rendered.readingTimeMinutes;
     }
 
     let slug = existing.slug;

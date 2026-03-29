@@ -76,6 +76,20 @@ function extractPlainTextFromNode(n: JSONContent): string {
   return n.content.map(extractPlainTextFromNode).join('');
 }
 
+function escapeHtmlText(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/** Plain text from a normalized TipTap doc (for fallback when server HTML render fails). */
+export function extractPlainTextFromDoc(doc: JSONContent): string {
+  if (!doc || typeof doc !== 'object' || !Array.isArray(doc.content)) return '';
+  return doc.content.map((block) => extractPlainTextFromNode(block)).join('\n\n');
+}
+
 function sanitizeTextNode(n: JSONContent): JSONContent {
   const text = typeof n.text === 'string' ? n.text : '';
   const marks = (n.marks || [])
@@ -229,6 +243,50 @@ export function jsonToSanitizedHtml(doc: JSONContent): string {
     return sanitizeHtml(raw, SANITIZE);
   } catch {
     throw new BlogContentRenderError('Content could not be sanitized');
+  }
+}
+
+/**
+ * Prefer TipTap server HTML; if anything throws (including non-Error throws from the DOM stack),
+ * fall back to escaped plain text paragraphs so Prisma create/update never fails on render alone.
+ */
+export function renderBlogHtmlWithFallback(doc: JSONContent): {
+  html: string;
+  readingTimeMinutes: number;
+  usedFallback: boolean;
+} {
+  try {
+    const html = jsonToSanitizedHtml(doc);
+    return {
+      html,
+      readingTimeMinutes: estimateReadingMinutesFromHtml(html),
+      usedFallback: false,
+    };
+  } catch {
+    const plain = extractPlainTextFromDoc(doc).trim();
+    let rawHtml: string;
+    if (!plain) {
+      rawHtml = '<p></p>';
+    } else {
+      rawHtml = plain
+        .split(/\n\n+/)
+        .map((block) => `<p>${escapeHtmlText(block).replace(/\n/g, ' ')}</p>`)
+        .join('');
+    }
+    try {
+      const html = sanitizeHtml(rawHtml, SANITIZE);
+      return {
+        html,
+        readingTimeMinutes: estimateReadingMinutesFromHtml(html),
+        usedFallback: true,
+      };
+    } catch {
+      return {
+        html: '<p></p>',
+        readingTimeMinutes: 1,
+        usedFallback: true,
+      };
+    }
   }
 }
 
