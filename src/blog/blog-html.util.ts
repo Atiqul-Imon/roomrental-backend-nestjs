@@ -67,23 +67,163 @@ const SANITIZE: sanitizeHtml.IOptions = {
   allowedSchemesByTag: { img: ['http', 'https'] },
 };
 
+const ALLOWED_MARKS = new Set(['bold', 'italic', 'strike', 'code', 'link', 'underline']);
+
+function extractPlainTextFromNode(n: JSONContent): string {
+  if (!n || typeof n !== 'object') return '';
+  if (n.type === 'text') return typeof n.text === 'string' ? n.text : '';
+  if (!Array.isArray(n.content)) return '';
+  return n.content.map(extractPlainTextFromNode).join('');
+}
+
+function sanitizeTextNode(n: JSONContent): JSONContent {
+  const text = typeof n.text === 'string' ? n.text : '';
+  const marks = (n.marks || [])
+    .filter((m) => m && typeof m === 'object' && ALLOWED_MARKS.has(String((m as { type?: string }).type)))
+    .map((m) => {
+      const t = (m as { type: string; attrs?: Record<string, unknown> }).type;
+      if (t === 'link') {
+        const hrefRaw = (m as { attrs?: { href?: string } }).attrs?.href;
+        const href = typeof hrefRaw === 'string' && hrefRaw.trim() ? hrefRaw.trim() : 'https://';
+        return {
+          type: 'link',
+          attrs: { href, target: '_blank', rel: 'noopener noreferrer nofollow' },
+        };
+      }
+      return { type: t };
+    });
+  return marks.length ? { type: 'text', text, marks } : { type: 'text', text };
+}
+
+function sanitizeInlineContent(content: JSONContent[] | undefined): JSONContent[] {
+  if (!content?.length) return [];
+  const out: JSONContent[] = [];
+  for (const c of content) {
+    if (!c || typeof c !== 'object') continue;
+    if (c.type === 'text') {
+      out.push(sanitizeTextNode(c));
+      continue;
+    }
+    if (c.type === 'hardBreak') {
+      out.push({ type: 'hardBreak' });
+      continue;
+    }
+    const t = extractPlainTextFromNode(c);
+    if (t) out.push(sanitizeTextNode({ type: 'text', text: t }));
+  }
+  return out;
+}
+
+function sanitizeBlockContent(content: JSONContent[] | undefined): JSONContent[] {
+  if (!content?.length) return [{ type: 'paragraph', content: [] }];
+  const out: JSONContent[] = [];
+  for (const c of content) {
+    const s = sanitizeBlockNode(c);
+    if (s) out.push(s);
+  }
+  return out.length ? out : [{ type: 'paragraph', content: [] }];
+}
+
+function unknownBlockToParagraph(n: JSONContent): JSONContent {
+  const text = extractPlainTextFromNode(n);
+  return {
+    type: 'paragraph',
+    content: text ? [sanitizeTextNode({ type: 'text', text })] : [],
+  };
+}
+
+function sanitizeBlockNode(n: JSONContent): JSONContent {
+  if (!n || typeof n !== 'object' || !n.type) {
+    return { type: 'paragraph', content: [] };
+  }
+  switch (n.type) {
+    case 'paragraph':
+      return { type: 'paragraph', content: sanitizeInlineContent(n.content) };
+    case 'heading': {
+      let level = typeof n.attrs?.level === 'number' ? n.attrs.level : 2;
+      if (level < 2 || level > 4) level = 2;
+      return { type: 'heading', attrs: { level }, content: sanitizeInlineContent(n.content) };
+    }
+    case 'bulletList': {
+      const items = (n.content || [])
+        .map((li) => sanitizeBlockNode(li))
+        .filter((x) => x.type === 'listItem');
+      if (!items.length) return unknownBlockToParagraph(n);
+      return { type: 'bulletList', content: items };
+    }
+    case 'orderedList': {
+      const items = (n.content || [])
+        .map((li) => sanitizeBlockNode(li))
+        .filter((x) => x.type === 'listItem');
+      if (!items.length) return unknownBlockToParagraph(n);
+      const attrs =
+        typeof n.attrs?.start === 'number' && n.attrs.start > 1
+          ? { start: n.attrs.start }
+          : undefined;
+      return attrs ? { type: 'orderedList', attrs, content: items } : { type: 'orderedList', content: items };
+    }
+    case 'listItem':
+      return { type: 'listItem', content: sanitizeBlockContent(n.content) };
+    case 'blockquote':
+      return { type: 'blockquote', content: sanitizeBlockContent(n.content) };
+    case 'codeBlock': {
+      const lang = n.attrs && typeof (n.attrs as { language?: string }).language === 'string'
+        ? (n.attrs as { language: string }).language
+        : undefined;
+      return {
+        type: 'codeBlock',
+        ...(lang ? { attrs: { language: lang } } : {}),
+        content: sanitizeInlineContent(n.content),
+      };
+    }
+    case 'horizontalRule':
+      return { type: 'horizontalRule' };
+    case 'image':
+      return {
+        type: 'image',
+        attrs: {
+          src: typeof n.attrs?.src === 'string' ? n.attrs.src : '',
+          alt: typeof n.attrs?.alt === 'string' ? n.attrs.alt : undefined,
+        },
+      };
+    default:
+      return unknownBlockToParagraph(n);
+  }
+}
+
+function sanitizeDocRoot(input: JSONContent): JSONContent {
+  if (input.type !== 'doc') return defaultTiptapDoc();
+  return { type: 'doc', content: sanitizeBlockContent(input.content) };
+}
+
 export function defaultTiptapDoc(): JSONContent {
   return { type: 'doc', content: [{ type: 'paragraph' }] };
 }
 
+/**
+ * Normalizes client TipTap JSON for server rendering + Prisma storage.
+ * Strips unknown node types (paste/extensions) that cause ProseMirror "Unknown node type" crashes.
+ */
 export function normalizeContentJson(input: unknown): JSONContent {
   if (!input || typeof input !== 'object') return defaultTiptapDoc();
   const obj = input as JSONContent;
   if (obj.type !== 'doc') return defaultTiptapDoc();
-  return obj;
+  try {
+    return sanitizeDocRoot(obj);
+  } catch {
+    return defaultTiptapDoc();
+  }
 }
 
 export function jsonToSanitizedHtml(doc: JSONContent): string {
   let raw: string;
   try {
     raw = generateHTML(doc, extensions);
-  } catch {
-    throw new BlogContentRenderError();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new BlogContentRenderError(
+      /Unknown node type|Invalid|Schema/i.test(msg) ? 'Unsupported content was removed or simplified' : 'Invalid rich text content',
+    );
   }
   try {
     return sanitizeHtml(raw, SANITIZE);

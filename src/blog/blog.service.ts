@@ -361,6 +361,9 @@ export class BlogService {
   }
 
   private mapPrismaToHttp(e: unknown): void {
+    if (e instanceof Prisma.PrismaClientValidationError) {
+      throw new BadRequestException('Invalid blog post data');
+    }
     if (typeof e !== 'object' || e === null || !('code' in e)) return;
     const err = e as { code: string; meta?: { modelName?: string; table?: string } };
     const code = err.code;
