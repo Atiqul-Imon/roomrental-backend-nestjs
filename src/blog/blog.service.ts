@@ -6,7 +6,7 @@ import {
   BadRequestException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { BlogPostStatus, Prisma } from '@prisma/client';
+import { BlogCategory, BlogPost, BlogPostStatus, BlogTag, Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { CacheService } from '../cache/cache.service';
 import slugify from 'slugify';
@@ -373,8 +373,8 @@ export class BlogService {
       const target = meta.meta?.target?.join(', ') ?? 'record';
       throw new ConflictException(`A ${target} with this value already exists`);
     }
-    // Table/relation missing — production DB often missing blog migration
-    if (code === 'P2021') {
+    // Table/column missing — production DB often missing blog migration or drift
+    if (code === 'P2021' || code === 'P2022') {
       this.logger.error(
         `Blog Prisma ${code}: ${err.meta?.modelName ?? err.meta?.table ?? 'table'} — run prisma migrate deploy`,
       );
@@ -384,7 +384,81 @@ export class BlogService {
     }
   }
 
-  async adminCreatePost(dto: CreateBlogPostDto, authorId: string) {
+  /** JWT user for last-resort author display when relation loads fail (e.g. RLS). */
+  private jwtAuthorShape(jwtAuthor: { id: string; email: string; name: string | null }) {
+    return { id: jwtAuthor.id, email: jwtAuthor.email, name: jwtAuthor.name };
+  }
+
+  /**
+   * Prefer one `findUnique` with author/category/tags. If that fails, load pieces separately;
+   * use JWT author only if `users` reads fail (staff still see a usable editor after save).
+   */
+  private async resolveAdminPostForEditor(
+    postId: string,
+    row: BlogPost,
+    jwtAuthor: { id: string; email: string; name: string | null },
+  ) {
+    try {
+      return await this.adminGetPost(postId);
+    } catch (err) {
+      this.logger.warn(
+        `Blog admin full reload failed for ${postId}: ${err instanceof Error ? err.message : String(err)}; retrying partial loads`,
+      );
+
+      let author: { id: string; name: string | null; email: string } = this.jwtAuthorShape(jwtAuthor);
+      try {
+        const u = await this.prisma.user.findUnique({
+          where: { id: row.authorId },
+          select: { id: true, name: true, email: true },
+        });
+        if (u) author = u;
+      } catch {
+        /* keep JWT */
+      }
+
+      let category: BlogCategory | null = null;
+      if (row.categoryId) {
+        try {
+          category = await this.prisma.blogCategory.findUnique({
+            where: { id: row.categoryId },
+          });
+        } catch {
+          /* null */
+        }
+      }
+
+      let tags: BlogTag[] = [];
+      try {
+        tags = await this.prisma.blogTag.findMany({
+          where: { posts: { some: { id: postId } } },
+        });
+      } catch {
+        /* [] */
+      }
+
+      return {
+        success: true as const,
+        data: {
+          post: {
+            ...row,
+            author,
+            category,
+            tags,
+          },
+        },
+      };
+    }
+  }
+
+  /**
+   * After insert, reload uses joins (author / category / tags). If that query fails (e.g. DB policies),
+   * we still return 200 using the created row plus `authorPreview` from the JWT — no extra read on `users`.
+   */
+  async adminCreatePost(
+    dto: CreateBlogPostDto,
+    authorId: string,
+    authorPreview: { id: string; email: string; name: string | null },
+  ) {
     const doc = normalizeContentJson(dto.contentJson);
     const rendered = renderBlogHtmlWithFallback(doc);
     if (rendered.usedFallback) {
@@ -457,10 +531,14 @@ export class BlogService {
     }
     await this.bumpBlogCache();
 
-    return this.adminGetPost(post.id);
+    return this.resolveAdminPostForEditor(post.id, post, authorPreview);
   }
 
-  async adminUpdatePost(id: string, dto: UpdateBlogPostDto) {
+  async adminUpdatePost(
+    id: string,
+    dto: UpdateBlogPostDto,
+    jwtAuthor: { id: string; email: string; name: string | null },
+  ) {
     const existing = await this.prisma.blogPost.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Post not found');
 
@@ -553,7 +631,12 @@ export class BlogService {
     }
 
     if (dto.tags !== undefined) {
-      await this.syncPostTags(id, dto.tags);
+      try {
+        await this.syncPostTags(id, dto.tags);
+      } catch (e) {
+        this.mapPrismaToHttp(e);
+        throw e;
+      }
     }
 
     await this.bumpBlogCache();
@@ -561,7 +644,7 @@ export class BlogService {
       await this.cache.del(`${CACHE_NS}:post:${existing.slug}`);
     }
 
-    return this.adminGetPost(id);
+    return this.resolveAdminPostForEditor(id, updated, jwtAuthor);
   }
 
   async adminDeletePost(id: string) {
