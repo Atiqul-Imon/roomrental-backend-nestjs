@@ -1,6 +1,7 @@
 import {
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
@@ -28,13 +29,21 @@ const TTL_LIST = 120;
 
 @Injectable()
 export class BlogService {
+  private readonly logger = new Logger(BlogService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly cache: CacheService,
   ) {}
 
   private async bumpBlogCache() {
-    await this.cache.invalidatePattern(`${CACHE_NS}:*`);
+    try {
+      await this.cache.invalidatePattern(`${CACHE_NS}:*`);
+    } catch (e) {
+      this.logger.warn(
+        `Blog cache invalidation failed (non-fatal): ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
   }
 
   /** Featured filter: DTO normalizes query strings; keep tolerant for tests or non-piped callers */
@@ -350,15 +359,24 @@ export class BlogService {
     return { success: true, data: { post } };
   }
 
-  private mapPrismaFkToBadRequest(e: unknown): void {
-    if (
-      typeof e === 'object' &&
-      e !== null &&
-      'code' in e &&
-      (e as { code: string }).code === 'P2003'
-    ) {
+  private mapPrismaToHttp(e: unknown): void {
+    if (typeof e !== 'object' || e === null || !('code' in e)) return;
+    const code = (e as { code: string }).code;
+    if (code === 'P2003') {
       throw new BadRequestException('Invalid category or related reference');
     }
+    if (code === 'P2002') {
+      const meta = e as { meta?: { target?: string[] } };
+      const target = meta.meta?.target?.join(', ') ?? 'record';
+      throw new ConflictException(`A ${target} with this value already exists`);
+    }
+  }
+
+  private isBlogRenderError(err: unknown): boolean {
+    return (
+      err instanceof BlogContentRenderError ||
+      (err instanceof Error && err.name === 'BlogContentRenderError')
+    );
   }
 
   async adminCreatePost(dto: CreateBlogPostDto, authorId: string) {
@@ -367,8 +385,8 @@ export class BlogService {
     try {
       contentHtml = jsonToSanitizedHtml(doc);
     } catch (err) {
-      if (err instanceof BlogContentRenderError) {
-        throw new BadRequestException(err.message);
+      if (this.isBlogRenderError(err)) {
+        throw new BadRequestException(err instanceof Error ? err.message : 'Invalid rich text content');
       }
       throw err;
     }
@@ -419,7 +437,7 @@ export class BlogService {
         },
       });
     } catch (e) {
-      this.mapPrismaFkToBadRequest(e);
+      this.mapPrismaToHttp(e);
       throw e;
     }
 
@@ -443,8 +461,8 @@ export class BlogService {
       try {
         contentHtml = jsonToSanitizedHtml(doc);
       } catch (err) {
-        if (err instanceof BlogContentRenderError) {
-          throw new BadRequestException(err.message);
+        if (this.isBlogRenderError(err)) {
+          throw new BadRequestException(err instanceof Error ? err.message : 'Invalid rich text content');
         }
         throw err;
       }
@@ -518,7 +536,7 @@ export class BlogService {
         },
       });
     } catch (e) {
-      this.mapPrismaFkToBadRequest(e);
+      this.mapPrismaToHttp(e);
       throw e;
     }
 
