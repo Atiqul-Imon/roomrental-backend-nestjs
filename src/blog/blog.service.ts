@@ -409,10 +409,12 @@ export class BlogService {
     baseSlug = await this.ensureUniqueSlug(baseSlug || 'post');
 
     const publishedAt =
-      dto.publishedAt != null
-        ? new Date(dto.publishedAt)
-        : dto.status === BlogPostStatus.published
-          ? new Date()
+      dto.status === BlogPostStatus.published
+        ? dto.publishedAt != null
+          ? new Date(dto.publishedAt)
+          : new Date()
+        : dto.status === BlogPostStatus.archived && dto.publishedAt != null
+          ? new Date(dto.publishedAt)
           : null;
 
     if (dto.status === BlogPostStatus.scheduled && !dto.scheduledFor) {
