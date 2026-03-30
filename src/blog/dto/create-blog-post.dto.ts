@@ -39,14 +39,25 @@ export class CreateBlogPostDto {
   @MaxLength(220)
   slug?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ nullable: true })
   @IsOptional()
+  @Transform(({ value }) => (value === '' ? null : value))
   @IsString()
   @MaxLength(600)
-  excerpt?: string;
+  excerpt?: string | null;
 
   /** TipTap / ProseMirror JSON document — @IsObject required or ValidationPipe whitelist strips/forbids this field */
   @ApiProperty({ type: 'object', additionalProperties: true })
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value) as Record<string, unknown>;
+      } catch {
+        return value;
+      }
+    }
+    return value;
+  })
   @IsObject()
   contentJson!: Record<string, unknown>;
 
