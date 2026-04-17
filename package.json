@@ -32,7 +32,10 @@
     "create-admin": "ts-node src/scripts/create-super-admin.ts",
     "check-users": "ts-node src/scripts/check-users.ts",
     "test-admin-users": "ts-node src/scripts/test-admin-users-endpoint.ts",
-    "delete-users": "ts-node src/scripts/delete-users.ts"
+    "delete-users": "ts-node src/scripts/delete-users.ts",
+    "ensure-landlord-service-account": "ts-node src/scripts/ensure-landlord-service-account.ts",
+    "migrate-to-roomrental-desk": "ts-node src/scripts/migrate-to-roomrental-desk.ts",
+    "set-roomrental-desk-password": "ts-node src/scripts/set-roomrental-desk-password.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
